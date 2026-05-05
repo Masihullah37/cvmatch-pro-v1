@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, integer, jsonb, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
 
-export const planEnum = pgEnum('plan', ['free', 'monthly']);
+export const planEnum = pgEnum('plan', ['free', 'one_time', 'monthly']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'cancelled', 'past_due']);
 export const analysisStatusEnum = pgEnum('status', ['processing', 'completed', 'failed']);
 export const paymentTypeEnum = pgEnum('payment_type', ['one_time', 'subscription']);
@@ -12,6 +12,8 @@ export const users = pgTable('users', {
   email: varchar('email').unique(),
   name: varchar('name'),
   plan: planEnum('plan').default('free'),
+  credits: integer('credits').default(0),
+  creditsExpiry: timestamp('credits_expiry'),
   stripeCustomerId: varchar('stripe_customer_id'),
   stripeSubscriptionId: varchar('stripe_subscription_id'),
   subscriptionStatus: subscriptionStatusEnum('subscription_status'),
@@ -24,7 +26,7 @@ export const users = pgTable('users', {
 export const cvAnalyses = pgTable('cv_analyses', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id'), // nullable for guests
-  guestSessionId: varchar('guest_session_id'),
+  guestSessionId: text('guest_session_id'),
   originalCvUrl: varchar('original_cv_url'),
   jobUrl: varchar('job_url'),
   userName: varchar('user_name'),
@@ -36,6 +38,7 @@ export const cvAnalyses = pgTable('cv_analyses', {
   suggestions: jsonb('suggestions'),
   keywordsMissing: jsonb('keywords_missing'),
   keywordsFound: jsonb('keywords_found'),
+  optimizedData: jsonb('optimized_data'),
   status: analysisStatusEnum('status').default('processing'),
   createdAt: timestamp('created_at').defaultNow(),
 });
@@ -49,6 +52,7 @@ export const cvTemplates = pgTable('cv_templates', {
   pdfUrl: varchar('pdf_url'),
   isPaid: boolean('is_paid').default(false),
   createdAt: timestamp('created_at').defaultNow(),
+  guestSessionId: text("guest_session_id"), // ADD THIS
 });
 
 export const payments = pgTable('payments', {
@@ -74,4 +78,15 @@ export const guestSessions = pgTable('guest_sessions', {
   email: varchar('email'),
   createdAt: timestamp('created_at').defaultNow(),
   lastActiveAt: timestamp('last_active_at').defaultNow(),
+});
+
+export const cvGenerations = pgTable('cv_generations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id),
+  analysisId: uuid('analysis_id').references(() => cvAnalyses.id),
+  templateId: uuid('template_id').references(() => cvTemplates.id),
+  templateStyle: varchar('template_style'),
+  templateData: jsonb('template_data'),
+  pdfUrl: varchar('pdf_url'),
+  createdAt: timestamp('created_at').defaultNow(),
 });

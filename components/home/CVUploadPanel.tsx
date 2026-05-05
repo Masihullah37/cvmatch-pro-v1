@@ -1,7 +1,7 @@
 'use client';
 
-import { FileUp, FileText } from 'lucide-react';
-import { useCallback } from 'react';
+import { FileUp, FileText, UserPlus, Sparkles } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 
 interface CVUploadPanelProps {
@@ -9,9 +9,19 @@ interface CVUploadPanelProps {
   setCvFile: (file: File | null) => void;
   cvUrl: string;
   setCvUrl: (url: string) => void;
+  profileDescription?: string;
+  setProfileDescription?: (desc: string) => void;
 }
 
-export default function CVUploadPanel({ cvFile, setCvFile, cvUrl, setCvUrl }: CVUploadPanelProps) {
+export default function CVUploadPanel({ 
+  cvFile, 
+  setCvFile, 
+  cvUrl, 
+  setCvUrl,
+  profileDescription = '',
+  setProfileDescription 
+}: CVUploadPanelProps) {
+  const [mode, setMode] = useState<'upload' | 'profile'>('upload');
   
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -29,59 +39,87 @@ export default function CVUploadPanel({ cvFile, setCvFile, cvUrl, setCvUrl }: CV
   });
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#e5e0d4] flex flex-col h-full">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary text-white p-2 rounded-lg">
-            <FileText size={20} />
+    <div className="glass-card rounded-[2.5rem] p-8 shadow-2xl flex flex-col h-full animate-in fade-in duration-700">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <div className="bg-primary/10 text-primary p-3 rounded-2xl">
+            {mode === 'upload' ? <FileText size={24} /> : <UserPlus size={24} />}
           </div>
-          <h2 className="text-lg font-bold text-primary">CV du Candidat</h2>
-        </div>
-        <div className="flex gap-2">
-          <span className="bg-[#EFECE3] text-[10px] font-bold px-2 py-1 rounded text-muted-foreground">PDF</span>
-          <span className="bg-[#EFECE3] text-[10px] font-bold px-2 py-1 rounded text-muted-foreground">DOCX</span>
-        </div>
-      </div>
-
-      <div 
-        {...getRootProps()} 
-        className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 transition-colors ${
-          isDragActive ? 'border-primary bg-primary/5' : 'border-[#d4cfc1] bg-[#FDFBF7]'
-        } cursor-pointer`}
-      >
-        <input {...getInputProps()} />
-        <div className="bg-[#e8f3ec] text-primary p-4 rounded-full mb-4">
-          <FileUp size={32} />
-        </div>
-        
-        {cvFile ? (
-          <div className="text-center space-y-2">
-            <p className="font-bold text-primary">{cvFile.name}</p>
-            <p className="text-xs text-muted-foreground">Fichier sélectionné. Cliquez ou glissez pour remplacer.</p>
-          </div>
-        ) : (
-          <div className="text-center space-y-2">
-            <h3 className="font-bold text-foreground text-lg">Déposez le CV ici</h3>
-            <p className="text-sm text-muted-foreground max-w-[250px] mx-auto">
-              Ou cliquez pour parcourir depuis votre ordinateur. Taille max 5MB.
+          <div>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              {mode === 'upload' ? 'Votre CV' : 'Votre Profil'}
+            </h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              {mode === 'upload' ? 'Importation' : 'Saisie Manuelle'}
             </p>
           </div>
-        )}
-
-        <button className="mt-6 bg-primary text-primary-foreground font-semibold px-6 py-2.5 rounded-lg text-sm hover:bg-primary/90 transition-colors shadow-sm">
-          Parcourir les fichiers
-        </button>
+        </div>
+        
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+          <button 
+            onClick={() => setMode('upload')}
+            className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${mode === 'upload' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Fichier
+          </button>
+          <button 
+            onClick={() => setMode('profile')}
+            className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${mode === 'profile' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Texte
+          </button>
+        </div>
       </div>
 
-      <div className="relative flex py-5 items-center">
-        <div className="flex-grow border-t border-[#e5e0d4]"></div>
-        <span className="flex-shrink-0 mx-4 text-xs font-semibold text-muted-foreground">ou</span>
-        <div className="flex-grow border-t border-[#e5e0d4]"></div>
-      </div>
+      {mode === 'upload' ? (
+        <div 
+          {...getRootProps()} 
+          className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-[2rem] p-10 transition-all ${
+            isDragActive ? 'border-primary bg-primary/5 scale-[0.98]' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+          } cursor-pointer group`}
+        >
+          <input {...getInputProps()} />
+          <div className="bg-white text-primary p-6 rounded-full mb-6 shadow-xl group-hover:scale-110 transition-transform">
+            <FileUp size={40} />
+          </div>
+          
+          {cvFile ? (
+            <div className="text-center space-y-3">
+              <p className="font-black text-primary text-lg">{cvFile.name}</p>
+              <p className="text-sm font-bold text-slate-400">Fichier prêt pour l'analyse.</p>
+            </div>
+          ) : (
+            <div className="text-center space-y-3">
+              <h3 className="font-black text-slate-900 text-xl tracking-tight">Glissez votre CV ici</h3>
+              <p className="text-sm font-medium text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+                Ou cliquez pour parcourir vos dossiers. PDF ou DOCX acceptés.
+              </p>
+            </div>
+          )}
 
-      <button className="w-full bg-[#EFECE3] text-foreground font-semibold py-3 rounded-lg text-sm hover:bg-[#e4e0d4] transition-colors">
-        Coller le texte brut
-      </button>
+          <button className="mt-8 bg-primary text-white font-black px-8 py-3.5 rounded-2xl text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+            Sélectionner un fichier
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col space-y-4">
+          <div className="relative flex-1">
+            <textarea 
+              value={profileDescription}
+              onChange={(e) => setProfileDescription?.(e.target.value)}
+              placeholder="Décrivez votre parcours, vos expériences et vos compétences ici... L'IA s'occupera de générer un CV parfaitement adapté."
+              className="w-full h-full min-h-[300px] p-6 bg-slate-50 border-none rounded-[2rem] text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700"
+            />
+            <div className="absolute bottom-6 right-6 flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
+              <Sparkles size={14} className="text-accent" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Optimisé par IA</span>
+            </div>
+          </div>
+          <p className="text-[10px] font-bold text-slate-400 text-center px-4 italic">
+            L'IA utilisera ces détails pour créer un CV compatible avec l'offre d'emploi.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,12 +20,6 @@ export default async function Header() {
              <Link href="/dashboard" className="text-sm font-semibold text-primary border-b-2 border-primary pb-1">
                Tableau de bord
              </Link>
-             <Link href="#" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors pb-1">
-               Emplois
-             </Link>
-             <Link href="#" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors pb-1">
-               Analyses
-             </Link>
           </nav>
         </div>
 

@@ -1,26 +1,26 @@
-import { NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe/client';
-import { auth } from '@clerk/nextjs/server';
+import { NextResponse } from "next/server";
+import { stripe } from "@/lib/stripe/client";
+import { auth } from "@clerk/nextjs/server";
 
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { analysisId } = await req.json();
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'subscription',
+      payment_method_types: ["card"],
+      mode: "subscription",
       line_items: [
         {
           price: process.env.STRIPE_SUBSCRIPTION_PRICE_ID,
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/dashboard?subscription=success`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/templates/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/templates/${analysisId}`,
       metadata: {
         userId,
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error: any) {
-    console.error('Stripe subscription checkout error:', error);
+    console.error("Stripe subscription checkout error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

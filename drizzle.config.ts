@@ -1,7 +1,11 @@
 import { defineConfig } from 'drizzle-kit';
 import * as dotenv from 'dotenv';
+import ws from 'ws';
+import { neonConfig } from '@neondatabase/serverless';
 
-// Load environment variables (fallback to .env.example for generation if needed)
+// Required for drizzle-kit push to connect to Neon via WebSocket
+neonConfig.webSocketConstructor = ws;
+
 dotenv.config({ path: '.env.local' });
 if (!process.env.DATABASE_URL) {
   dotenv.config({ path: '.env.example' });

@@ -1,25 +1,142 @@
 import { NextResponse } from 'next/server';
-// import { renderToStream } from '@react-pdf/renderer'; // Wait, React-PDF requires jsx/tsx for template
+import { db } from "@/lib/db";
+import { auth } from "@clerk/nextjs/server";
+import { users, cvTemplates, cvGenerations, cvAnalyses } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import puppeteer from 'puppeteer';
+import React from 'react';
+import { CVRenderer } from '@/components/templates/CVRenderer';
 
-// For a complete PDF generation, we normally create a React component and render it.
-// Because it's a server environment, we might just mock the response or return a dummy buffer in this prototype.
+// CACHE BUSTER: 2026-05-05-V3
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+/**
+ * PDF GENERATION ROUTE
+ */
 export async function POST(req: Request) {
-  try {
-    const { templateId } = await req.json();
+    // CRITICAL FIX: Use eval('require') to completely bypass Next.js static analysis for react-dom/server
+    const render = eval('require')('react-dom/server').renderToStaticMarkup;
     
-    // In a full implementation, you would:
-    // 1. Fetch templateData from DB
-    // 2. Render the React-PDF document with the data
-    // 3. Upload the generated buffer to Uploadthing / R2
-    // 4. Save the PDF URL back to DB
-    // 5. Return the URL
+    let browser;
+    try {
+        const { userId } = await auth();
+        const body = await req.json();
+        const { templateId, analysisId, templateData } = body;
 
-    // Mocking PDF URL for Phase 5 prototype
-    const mockPdfUrl = "https://example.com/dummy-cv.pdf";
-    
-    return NextResponse.json({ url: mockPdfUrl });
-  } catch (error: any) {
-    console.error('API /generate-pdf error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+        if (!templateId || !analysisId) {
+            return NextResponse.json({ error: "Missing IDs" }, { status: 400 });
+        }
+
+        const template = await db.query.cvTemplates.findFirst({
+            where: eq(cvTemplates.id, templateId),
+        });
+
+        const analysis = await db.query.cvAnalyses.findFirst({
+            where: eq(cvAnalyses.id, analysisId),
+        });
+
+        if (!template || !analysis) {
+            return NextResponse.json({ error: "Data not found" }, { status: 404 });
+        }
+
+        // 1. Permission check
+        if (userId) {
+            const dbUser = await db.query.users.findFirst({
+                where: eq(users.clerkId, userId),
+            });
+            if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+            const isOwner = analysis.userId === dbUser.id;
+            const isPro = dbUser.plan === 'monthly';
+
+            if (!isOwner && !isPro && !template.isPaid) {
+                return NextResponse.json({ error: "Paiement requis." }, { status: 403 });
+            }
+        }
+
+        // 2. Browser Launch
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--font-render-hinting=none',
+                '--disable-dev-shm-usage'
+            ]
+        });
+
+        const page = await browser.newPage();
+
+        // ✅ Block external trackers to speed up load
+        await page.setRequestInterception(true);
+        page.on('request', (request) => {
+            const url = request.url();
+            if (url.includes('google-analytics') || url.includes('clerk')) {
+                request.abort();
+            } else {
+                request.continue();
+            }
+        });
+
+        await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+
+        // ✅ Render CV to HTML string
+        const displayData = templateData || template.templateData;
+        const cvHtml = render(
+            React.createElement(CVRenderer, {
+                template: { ...template, templateData: displayData },
+                analysisData: analysis,
+                isPaid: true,
+                isPreview: false
+            })
+        );
+
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+                    body {
+                        font-family: 'Inter', sans-serif;
+                        margin: 0;
+                        padding: 0;
+                        -webkit-print-color-adjust: exact;
+                    }
+                    .cv-printable { margin: 0 !important; box-shadow: none !important; }
+                </style>
+            </head>
+            <body>
+                <div id="cv-ready">${cvHtml}</div>
+            </body>
+            </html>
+        `;
+
+        // ✅ Set content and wait for load
+        await page.setContent(htmlContent, { waitUntil: 'load', timeout: 30000 });
+        
+        // Delay for Tailwind and fonts
+        await new Promise(r => setTimeout(r, 2500));
+
+        const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+        });
+
+        await browser.close();
+
+        return NextResponse.json({
+            pdfBase64: Buffer.from(pdfBuffer).toString('base64'),
+            fileName: `CV_${template.templateStyle}.pdf`
+        });
+
+    } catch (error: any) {
+        if (browser) await browser.close();
+        console.error('PDF Error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }

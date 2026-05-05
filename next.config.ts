@@ -4,11 +4,21 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
-const nextConfig: NextConfig = {
+const nextConfig: any = {
   serverExternalPackages: ['pdf2json', 'mammoth', 'underscore', 'lop'],
   images: {
     formats: ['image/webp'],
   },
+
+  // This must be here to stop the "Blocked cross-origin" error
+  allowedDevOrigins: ['giver-molar-judiciary.ngrok-free.dev'],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['giver-molar-judiciary.ngrok-free.dev'],
+    },
+  },
+
+
   async headers() {
     return [
       {
@@ -37,3 +47,6 @@ export default withSentryConfig(withNextIntl(nextConfig), {
   project: "cvmatch-pro",
   silent: true,
 });
+
+
+

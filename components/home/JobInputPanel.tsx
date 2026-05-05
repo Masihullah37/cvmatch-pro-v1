@@ -1,6 +1,6 @@
 'use client';
 
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Info } from 'lucide-react';
 
 interface JobInputPanelProps {
   jobTitle: string;
@@ -16,47 +16,50 @@ export default function JobInputPanel({
   setJobDescription 
 }: JobInputPanelProps) {
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#e5e0d4] flex flex-col h-full">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-[#e8f3ec] text-primary p-2 rounded-lg">
-            <Briefcase size={20} />
+    <div className="glass-card rounded-[2.5rem] p-8 shadow-2xl flex flex-col h-full animate-in fade-in duration-700 delay-150">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <div className="bg-primary/10 text-primary p-3 rounded-2xl">
+            <Briefcase size={24} />
           </div>
-          <h2 className="text-lg font-bold text-foreground">Poste Ciblé</h2>
+          <div>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Le Poste</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cible d'Analyse</p>
+          </div>
         </div>
-        <button className="text-xs font-semibold text-primary hover:underline">
-          Charger un modèle
-        </button>
+        <div className="bg-blue-50 text-primary px-3 py-1 rounded-full flex items-center gap-2">
+          <Info size={14} />
+          <span className="text-[10px] font-black uppercase tracking-widest">Aide IA</span>
+        </div>
       </div>
 
-      <div className="space-y-4 flex-1 flex flex-col">
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-foreground">Intitulé du poste</label>
+      <div className="space-y-6 flex-1 flex flex-col">
+        <div className="space-y-3">
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Intitulé du poste</label>
           <input 
             type="text"
-            placeholder="ex. Développeur Frontend Senior"
+            placeholder="ex. Lead Product Designer"
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
-            className="w-full bg-[#EFECE3] border-none rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground font-medium"
+            className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm font-bold focus:ring-4 focus:ring-primary/10 outline-none text-slate-700 placeholder:text-slate-300 transition-all"
           />
         </div>
 
-        <div className="space-y-2 flex-1 flex flex-col">
-          <label className="text-sm font-semibold text-foreground">Description et Pré-requis</label>
+        <div className="space-y-3 flex-1 flex flex-col">
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Missions & Critères</label>
           <textarea 
-            placeholder="Collez la description complète du poste ici..."
+            placeholder="Décrivez les responsabilités et les compétences attendues... L'IA extraira les mots-clés essentiels."
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="w-full flex-1 min-h-[200px] bg-[#EFECE3] border-none rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground resize-none font-medium"
+            className="w-full flex-1 min-h-[250px] bg-slate-50 border-none rounded-[2rem] px-6 py-6 text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700 placeholder:text-slate-300 transition-all"
           />
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-[#e5e0d4]">
-        <button className="text-xs font-semibold text-muted-foreground flex items-center gap-2 hover:text-primary transition-colors">
-          <span className="flex items-center justify-center w-4 h-4 rounded-full border border-current">+</span>
-          Ajouter des critères de sélection personnalisés
-        </button>
+      <div className="mt-8 pt-6 border-t border-slate-100">
+        <p className="text-[10px] font-bold text-slate-400 text-center px-4 uppercase tracking-tighter">
+          Plus la description est précise, meilleur sera votre score ATS.
+        </p>
       </div>
     </div>
   );
