@@ -25,7 +25,7 @@ export const users = pgTable('users', {
 
 export const cvAnalyses = pgTable('cv_analyses', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id'), // nullable for guests
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }), // GDPR: Delete analyses when user is deleted
   guestSessionId: text('guest_session_id'),
   originalCvUrl: varchar('original_cv_url'),
   jobUrl: varchar('job_url'),
@@ -45,19 +45,19 @@ export const cvAnalyses = pgTable('cv_analyses', {
 
 export const cvTemplates = pgTable('cv_templates', {
   id: uuid('id').defaultRandom().primaryKey(),
-  analysisId: uuid('analysis_id').references(() => cvAnalyses.id),
+  analysisId: uuid('analysis_id').references(() => cvAnalyses.id, { onDelete: 'cascade' }), // Cascade deletion
   templateNumber: integer('template_number'),
   templateStyle: varchar('template_style'),
   templateData: jsonb('template_data'),
   pdfUrl: varchar('pdf_url'),
   isPaid: boolean('is_paid').default(false),
   createdAt: timestamp('created_at').defaultNow(),
-  guestSessionId: text("guest_session_id"), // ADD THIS
+  guestSessionId: text("guest_session_id"),
 });
 
 export const payments = pgTable('payments', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id'),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }), // Keep payment history for accounting, but unlink user
   guestEmail: varchar('guest_email'),
   guestSessionId: varchar('guest_session_id'),
   stripePaymentIntentId: varchar('stripe_payment_intent_id').unique(),
@@ -82,9 +82,9 @@ export const guestSessions = pgTable('guest_sessions', {
 
 export const cvGenerations = pgTable('cv_generations', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id),
-  analysisId: uuid('analysis_id').references(() => cvAnalyses.id),
-  templateId: uuid('template_id').references(() => cvTemplates.id),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  analysisId: uuid('analysis_id').references(() => cvAnalyses.id, { onDelete: 'cascade' }),
+  templateId: uuid('template_id').references(() => cvTemplates.id, { onDelete: 'cascade' }),
   templateStyle: varchar('template_style'),
   templateData: jsonb('template_data'),
   pdfUrl: varchar('pdf_url'),

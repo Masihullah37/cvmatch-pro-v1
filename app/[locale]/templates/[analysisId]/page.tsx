@@ -1,17 +1,15 @@
 import { db } from "@/lib/db";
-import { cvAnalyses, cvTemplates, users } from "@/lib/db/schema";
+import { cvAnalyses, cvTemplates } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Footer from "@/components/layout/Footer";
 import TemplateGrid from "@/components/templates/TemplateGrid";
 import { auth } from "@clerk/nextjs/server";
-import { Loader2 } from "lucide-react";
-import LoadingPolling from "@/components/templates/LoadingPolling";
-import { revalidatePath } from "next/cache";
+import { AlertCircle } from "lucide-react";
+import { Link } from "@/i18n/routing";
 
 /**
  * Background function to generate templates if they are missing
- * ONLY ONE DEFINITION ALLOWED
  */
 async function generateTemplatesForAnalysis(analysisId: string): Promise<boolean> {
   const analysis = await db.query.cvAnalyses.findFirst({
@@ -34,7 +32,7 @@ async function generateTemplatesForAnalysis(analysisId: string): Promise<boolean
     optimizedContent = JSON.parse(optimizedContent);
   }
 
-  const styles = ["Galaxy", "Eclipse", "Aether", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra"];
+  const styles = ["Galaxy", "Eclipse", "Aether", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Horizon", "Europass"];
 
   await Promise.all(
     styles.map((style, i) =>
@@ -60,140 +58,63 @@ async function generateTemplatesForAnalysis(analysisId: string): Promise<boolean
 
 export default async function TemplatesPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ analysisId: string }>;
-  searchParams: Promise<{ session_id?: string; success?: string; payment?: string }>;
 }) {
   const { analysisId } = await params;
-  const { success, payment, session_id } = await searchParams;
-  const { userId } = await auth();
 
-  // 1. Fetch User and Analysis from DB
-  let dbUser = userId
-    ? await db.query.users.findFirst({ where: eq(users.clerkId, userId) })
-    : null;
-
+  // 1. Fetch Analysis from DB
   const analysis = await db.query.cvAnalyses.findFirst({
     where: eq(cvAnalyses.id, analysisId),
   });
 
   if (!analysis) notFound();
 
-  // 2. Check if user is paid
-  let isPaid = dbUser?.plan === "monthly" || dbUser?.plan === "one_time";
-
-  // 3. Load templates
+  // 2. Fetch templates
   let templates = await db.query.cvTemplates.findMany({
     where: eq(cvTemplates.analysisId, analysisId),
   });
 
-  // 4. HANDLING RACE CONDITION & CREDIT DEDUCTION
-  const justPaid = (success === "true" || payment === "success") && session_id;
-  console.log("[PDF_GEN] Debug:", { justPaid, isPaid, userId, session_id });
+  const isPaid = templates.length > 0 && templates.some(t => t.isPaid);
 
-  // FALLBACK: If redirected from Stripe but DB hasn't updated yet, verify session manually
-  if (justPaid && !isPaid && userId) {
-    try {
-      console.log("[PDF_GEN] Manual sync started for session", session_id);
-      const { stripe } = await import("@/lib/stripe/client");
-      const session = await stripe.checkout.sessions.retrieve(session_id as string);
-      console.log("[PDF_GEN] Stripe session status:", session.payment_status);
-
-      if (session.payment_status === "paid") {
-        console.log("[PDF_GEN] Manual sync: Session verified for user", userId);
-        const isSub = session.mode === "subscription";
-        const oneMonth = new Date();
-        oneMonth.setMonth(oneMonth.getMonth() + 1);
-
-        // Update user in DB immediately
-        await db.update(users).set({
-          plan: isSub ? 'monthly' : 'one_time',
-          credits: (dbUser?.credits || 0) + (isSub ? 30 : 5),
-          subscriptionEndsAt: oneMonth,
-          creditsExpiry: oneMonth,
-        }).where(eq(users.clerkId, userId));
-
-        // Mark templates for this analysis as paid
-        await db.update(cvTemplates).set({ isPaid: true }).where(eq(cvTemplates.analysisId, analysisId));
-
-        // Re-fetch dbUser and templates to reflect changes
-        dbUser = await db.query.users.findFirst({ where: eq(users.clerkId, userId) });
-        templates = await db.query.cvTemplates.findMany({ where: eq(cvTemplates.analysisId, analysisId) });
-
-        // Update local flags
-        isPaid = true;
-        revalidatePath('/[locale]', 'layout');
-      }
-    } catch (e) {
-      console.error("[PDF_GEN] Manual Stripe sync failed:", e);
-    }
-  }
-
-  // Use a local "paid" flag that trusts the URL redirect during the transition
-  const effectiveIsPaid = isPaid || !!justPaid;
-
-  // 4b. CREDIT DEDUCTION FOR GENERATION
-  // We only deduct if it's a new payment redirect AND we haven't already marked these templates as paid
-  const alreadyDeducted = templates.length > 0 && templates.every(t => t.isPaid);
-
-  if (justPaid && effectiveIsPaid && dbUser && !alreadyDeducted) {
-    const canDeduct = (dbUser.credits ?? 0) > 0;
-    console.log("[PDF_GEN] Sync deduction check:", { canDeduct, credits: dbUser.credits });
-
-    if (canDeduct) {
-      const newCredits = (dbUser.credits ?? 1) - 1;
-      await db.update(users)
-        .set({ credits: newCredits })
-        .where(eq(users.clerkId, userId));
-
-      // Update analysis status to track that we've already deducted for this generation
-      await db.update(cvAnalyses)
-        .set({ status: 'completed' as any }) // We use 'completed' as a proxy if we don't have a dedicated field
-        .where(eq(cvAnalyses.id, analysisId));
-
-      dbUser.credits = newCredits;
-      console.log("[PDF_GEN] Manual credit deduction success. New balance:", newCredits);
-      revalidatePath('/[locale]', 'layout');
-    }
-  }
-
-  // CRITICAL: If templates are missing and we have payment proof, generate them
-  if (templates.length === 0 && effectiveIsPaid) {
-    if (analysis.optimizedData) {
-      console.log("[PDF_GEN] Generating templates for", analysisId);
-      await generateTemplatesForAnalysis(analysisId);
-
-      // Re-fetch templates to reflect changes
-      templates = await db.query.cvTemplates.findMany({ where: eq(cvTemplates.analysisId, analysisId) });
-    }
-  }
-
-  // Only return loading state if templates are STILL missing after generation attempt
-  if (templates.length === 0 && effectiveIsPaid) {
+  if (analysis.status === "processing") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-muted/10 p-6">
-        <LoadingPolling />
-        <div className="text-center space-y-6 max-w-md p-10 bg-white rounded-[2.5rem] shadow-xl border border-slate-100">
-          <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto" />
-          <h2 className="text-2xl font-black text-slate-900">Préparation de vos modèles...</h2>
-          <p className="text-slate-500">L'IA finalise vos CV personnalisés. La page s'actualisera seule.</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p>L'analyse de votre CV est en cours...</p>
         </div>
       </div>
     );
   }
 
+  // 3. Authorization Check
+  if (!isPaid) {
+     return (
+       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-muted/10">
+         <div className="text-center space-y-6 max-w-md p-10 bg-white rounded-[2.5rem] shadow-xl border border-slate-100">
+           <AlertCircle className="h-16 w-16 text-primary mx-auto" />
+           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Accès restreint</h2>
+           <p className="text-slate-500 font-medium">Vous devez débloquer l'analyse pour voir et télécharger vos modèles de CV optimisés.</p>
+           <Link href={`/results/${analysisId}`} className="inline-block bg-primary text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-105 transition-all">
+             Retour aux résultats
+           </Link>
+         </div>
+       </div>
+     );
+  }
 
-  // 5. Final Render
+  // 4. Final Render
   return (
     <div className="flex min-h-screen flex-col bg-muted/10">
       <main className="flex-1 container mx-auto py-10 px-4">
         <div className="mb-10 text-center max-w-3xl mx-auto">
-          <h1 className="text-4xl font-extrabold mb-4 text-slate-900">Vos Modèles Optimisés</h1>
+          <h1 className="text-4xl font-extrabold mb-4 text-slate-900 tracking-tight">Vos Modèles Optimisés</h1>
+          <p className="text-slate-500 font-medium">Choisissez votre style préféré et téléchargez votre CV prêt pour le recrutement.</p>
         </div>
         <TemplateGrid
           templates={templates as any}
-          isPaid={effectiveIsPaid}
+          isPaid={isPaid}
           analysisId={analysisId}
           analysisData={analysis}
         />

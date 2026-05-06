@@ -19,7 +19,7 @@ export default async function Sidebar() {
       if (userRecord) {
         // Check for expiry
         const now = new Date();
-        const expiryDate = userRecord.subscriptionEndsAt ? new Date(userRecord.subscriptionEndsAt) : null;
+        const expiryDate = userRecord.creditsExpiry ? new Date(userRecord.creditsExpiry) : null;
         
         if (expiryDate && now > expiryDate) {
            credits = 0;
@@ -58,6 +58,9 @@ export default async function Sidebar() {
          </Link>
          <Link href="/dashboard" className="flex items-center gap-3 text-slate-500 px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all">
            <Clock size={18} /> Historique
+         </Link>
+         <Link href="/dashboard/settings" className="flex items-center gap-3 text-slate-500 px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all">
+           <Zap size={18} /> Paramètres
          </Link>
        </nav>
 

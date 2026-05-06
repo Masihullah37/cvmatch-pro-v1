@@ -33,8 +33,8 @@ export async function createCheckoutSession(
         },
       ],
       mode: "payment",
-      success_url: `${appUrl}/${locale}/templates/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/${locale}/templates/${analysisId}?canceled=true`,
+      success_url: `${appUrl}/${locale}/results/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/${locale}/results/${analysisId}?canceled=true`,
       metadata: {
         userId: userId || "guest",
         analysisId,
@@ -52,8 +52,8 @@ export async function createCheckoutSession(
         },
       ],
       mode: "subscription",
-      success_url: `${appUrl}/${locale}/templates/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/${locale}/templates/${analysisId}?canceled=true`,
+      success_url: `${appUrl}/${locale}/results/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/${locale}/results/${analysisId}?canceled=true`,
       metadata: {
         userId: userId || "guest",
         analysisId,

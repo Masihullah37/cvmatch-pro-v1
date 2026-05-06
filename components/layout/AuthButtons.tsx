@@ -24,5 +24,22 @@ export default function AuthButtons() {
     );
   }
 
-  return <UserButton />;
+  return (
+    <UserButton 
+      appearance={{
+        elements: {
+          userButtonPopoverActionButton__security: { display: 'none' },
+          userButtonPopoverActionButton__danger: { display: 'none' },
+        }
+      }}
+      userProfileProps={{
+        appearance: {
+          elements: {
+            navbarItem__security: { display: 'none' },
+            profileSection__danger: { display: 'none' }
+          }
+        }
+      }}
+    />
+  );
 }

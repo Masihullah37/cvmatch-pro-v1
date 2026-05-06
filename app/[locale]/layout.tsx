@@ -7,6 +7,7 @@ import { routing } from '@/i18n/routing';
 import '../globals.css';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
+import Footer from '@/components/layout/Footer';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -39,6 +40,9 @@ export default async function LocaleLayout({
            <main className="flex-1">
              {children}
            </main>
+           <div className="no-print">
+             <Footer />
+           </div>
          </div>
        </div>
     </NextIntlClientProvider>

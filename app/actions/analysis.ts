@@ -11,23 +11,44 @@ import { eq, sql } from "drizzle-orm";
 import { users } from "@/lib/db/schema";
 
 export async function performCVAnalysis(formData: FormData) {
+  // const { userId } = await auth();
+  // if (!userId) {
+  //   throw new Error("Unauthorized. Please sign in.");
+  // }
+
+  // // 1. Resolve/Sync User
+  // let dbUser = await db.query.users.findFirst({
+  //   where: eq(users.clerkId, userId)
+  // });
+
+  // if (!dbUser) {
+  //   // If user record doesn't exist for some reason, create it
+  //   const [newUser] = await db.insert(users).values({
+  //     clerkId: userId,
+  //     credits: 0, 
+  //   }).returning();
+  //   dbUser = newUser;
+  // }
+
+
   const { userId } = await auth();
-  if (!userId) {
-    throw new Error("Unauthorized. Please sign in.");
-  }
+  let dbUserId: string | null = null;
 
-  // 1. Resolve/Sync User
-  let dbUser = await db.query.users.findFirst({
-    where: eq(users.clerkId, userId)
-  });
+  if (userId) {
+    // Resolve/Sync User only if logged in
+    let dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId)
+    });
 
-  if (!dbUser) {
-    // If user record doesn't exist for some reason, create it
-    const [newUser] = await db.insert(users).values({
-      clerkId: userId,
-      credits: 0, 
-    }).returning();
-    dbUser = newUser;
+    if (!dbUser) {
+      const [newUser] = await db.insert(users).values({
+        clerkId: userId,
+        credits: 0,
+      }).returning();
+      dbUserId = newUser.id;
+    } else {
+      dbUserId = dbUser.id;
+    }
   }
 
   const cvFile = formData.get('cvFile') as File | null;
@@ -70,7 +91,7 @@ export async function performCVAnalysis(formData: FormData) {
   let newAnalysis: typeof cvAnalyses.$inferSelect;
   try {
     const result = await db.insert(cvAnalyses).values({
-      userId: dbUser.id, // Associate with DB user
+      userId: dbUserId, // Associate with DB user
       status: 'completed',
       atsScore: Math.round(Number(analysisResult.atsScore) || 0),
       scoreBreakdown: analysisResult.scoreBreakdown,
@@ -121,7 +142,7 @@ export async function unlockOptimizedCV(analysisId: string) {
   // 2. Generate Templates
   const optimizedContent = analysis.optimizedData as any;
   const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
-  
+
   const templatePromises = styles.map((style, i) => {
     return db.insert(cvTemplates).values({
       analysisId: analysis.id,
@@ -140,9 +161,9 @@ export async function unlockOptimizedCV(analysisId: string) {
   });
 
   await Promise.all(templatePromises);
-  
+
   revalidatePath('/[locale]/results/[id]', 'page');
   revalidatePath('/[locale]/templates/[id]', 'page');
-  
+
   return { success: true };
 }

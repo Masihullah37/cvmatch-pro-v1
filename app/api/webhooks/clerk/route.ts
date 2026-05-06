@@ -106,7 +106,39 @@ export async function POST(req: Request) {
   }
 
   if (eventType === 'user.deleted') {
-    await db.delete(users).where(eq(users.clerkId, id!));
+    const userId = id!;
+    console.log(`[CLERK_WEBHOOK] Attempting deletion for user: ${userId}`);
+    
+    try {
+      const dbUser = await db.query.users.findFirst({
+        where: eq(users.clerkId, userId)
+      });
+
+      if (dbUser) {
+        console.log(`[CLERK_WEBHOOK] Found user in DB: ${dbUser.email} (UUID: ${dbUser.id})`);
+        
+        // 1. Cancel Stripe Subscription if active
+        if (dbUser.stripeSubscriptionId) {
+          try {
+            const { stripe } = await import('@/lib/stripe');
+            await stripe.subscriptions.cancel(dbUser.stripeSubscriptionId);
+            console.log(`[CLERK_WEBHOOK] ✅ Stripe subscription cancelled: ${dbUser.stripeSubscriptionId}`);
+          } catch (stripeErr: any) {
+            console.error('[CLERK_WEBHOOK] ❌ Failed to cancel Stripe subscription:', stripeErr.message);
+            // We continue anyway to ensure the DB row is deleted (GDPR)
+          }
+        }
+
+        // 2. Delete user row (cascades to analyses, templates, generations)
+        const deleteResult = await db.delete(users).where(eq(users.clerkId, userId));
+        console.log(`[CLERK_WEBHOOK] ✅ User ${userId} deleted from Neon. GDPR Cleanup complete.`);
+      } else {
+        console.warn(`[CLERK_WEBHOOK] ⚠️ User ${userId} not found in database. Nothing to delete.`);
+      }
+    } catch (err: any) {
+      console.error(`[CLERK_WEBHOOK] ❌ FATAL ERROR during user.deleted:`, err.message);
+      return new Response('Error deleting user', { status: 500 });
+    }
   }
 
   return new Response('', { status: 200 });

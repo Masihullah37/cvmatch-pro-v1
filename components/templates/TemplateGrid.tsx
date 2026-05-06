@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import PaywallModal from './PaywallModal';
 import {
   Lock, Loader2, Download, Sparkles, Edit3, X, Save,
-  Plus, Trash2, AlertCircle, CheckCircle2,
+  Plus, Trash2, AlertCircle, CheckCircle2, Camera,
 } from 'lucide-react';
 import CVRenderer from './CVRenderer';
 
@@ -440,6 +440,53 @@ export default function TemplateGrid({
                   {/* ── 1. Informations Générales + Résumé ──────────────── */}
                   <section className="space-y-3">
                     <SectionHeader sectionKey="summary" editingData={editingData} updateNestedData={updateNestedData} />
+                    
+                    {/* Photo Upload */}
+                    <div>
+                      <label className={labelCls}>Photo de profil</label>
+                      <div className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                        {editingData?.photoUrl ? (
+                          <div className="relative group">
+                            <img src={editingData.photoUrl} alt="Profil" className="w-20 h-20 rounded-xl object-cover" />
+                            <button 
+                              onClick={() => updateNestedData('photoUrl', '')}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-20 h-20 rounded-xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
+                            <Camera size={20} />
+                            <span className="text-[10px] font-bold mt-1">Photo</span>
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            id="photo-upload" 
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => updateNestedData('photoUrl', reader.result);
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <label 
+                            htmlFor="photo-upload" 
+                            className="inline-block px-4 py-2 bg-primary/10 text-primary rounded-lg text-xs font-bold cursor-pointer hover:bg-primary/20 transition-colors"
+                          >
+                            {editingData?.photoUrl ? 'Changer la photo' : 'Télécharger une photo'}
+                          </label>
+                          <p className="text-[10px] text-slate-400 mt-2 font-medium">PNG, JPG ou JPEG (Max 2MB)</p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div>
                       <label className={labelCls}>Nom complet</label>
                       <input className={inputCls} placeholder="Nom Complet"

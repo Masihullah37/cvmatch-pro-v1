@@ -12,8 +12,7 @@ const isProtectedRoute = createRouteMatcher([
   '/api/uploadthing',
   '/:locale/dashboard(.*)',
   '/:locale/templates(.*)',
-  '/:locale/results(.*)',
-  // '/:locale/print(.*)',
+  // '/:locale/results(.*)', // Open for Freemium
 ]);
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const { pathname } = req.nextUrl;

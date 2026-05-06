@@ -1,10 +1,10 @@
 'use client';
 
 import { performCVAnalysis } from '@/app/actions/analysis';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, X } from 'lucide-react';
 
 interface AnalyzeButtonProps {
   cvFile: File | null;
@@ -24,15 +24,26 @@ export default function AnalyzeButton({
   const router = useRouter();
   const locale = useLocale();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Auto-clear error after 8 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   const handleAnalyze = async () => {
+    setError(null);
+    
     // Validation: We need either a CV file or a Profile Description
     if (!cvFile && !cvUrl && (!profileDescription || profileDescription.trim().length < 50)) {
-      alert("Veuillez importer un CV ou décrire votre profil (min. 50 caractères).");
+      setError("Veuillez importer un CV ou décrire votre profil avec plus de détails (min. 50 caractères).");
       return;
     }
     if (!jobTitle || !jobDescription) {
-      alert("Veuillez renseigner l'intitulé et la description du poste.");
+      setError("L'intitulé et la description du poste sont requis pour une analyse précise.");
       return;
     }
 
@@ -48,31 +59,59 @@ export default function AnalyzeButton({
 
       const analysisId = await performCVAnalysis(formData);
       router.push(`/${locale}/results/${analysisId}`);
-    } catch (error) {
-      console.error("Analysis failed", error);
-      alert("Une erreur est survenue lors de l'analyse.");
+    } catch (err: any) {
+      console.error("Analysis failed", err);
+      setError(err.message || "Une erreur inattendue est survenue. Veuillez réessayer.");
       setIsAnalyzing(false);
     }
   };
 
-  const isDisabled = isAnalyzing;
-
   return (
-    <button 
-      onClick={handleAnalyze}
-      disabled={isDisabled}
-      className={`group flex items-center justify-center gap-4 w-full max-w-[500px] py-6 rounded-[2rem] text-xl font-black shadow-2xl transition-all ${
-        isDisabled 
-          ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-          : 'bg-primary text-white hover:bg-primary/90 hover:scale-[1.03] hover:shadow-primary/30 active:scale-95'
-      }`}
-    >
-      {isAnalyzing ? (
-        <Loader2 size={24} className="animate-spin" />
-      ) : (
-        <Sparkles size={24} className="group-hover:animate-pulse" />
+    <div className="w-full flex flex-col items-center gap-6 relative">
+      {/* Beautiful Error UI */}
+      {error && (
+        <div className="absolute -top-32 w-full max-w-[500px] animate-in fade-in slide-in-from-bottom-4 duration-500 z-50">
+          <div className="bg-red-50 border-2 border-red-100 p-5 rounded-[2rem] shadow-2xl shadow-red-200/50 flex items-start gap-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2">
+              <button onClick={() => setError(null)} className="p-2 hover:bg-red-100 rounded-full text-red-400 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-3 bg-red-100 rounded-2xl text-red-500 shrink-0">
+              <AlertCircle size={24} />
+            </div>
+            <div className="space-y-1 pr-6">
+              <p className="font-black text-red-900 text-sm tracking-tight uppercase">Oups ! Action requise</p>
+              <p className="text-red-700/80 text-sm font-medium leading-relaxed">
+                {error}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
-      {isAnalyzing ? 'Analyse par IA en cours...' : 'Générer mon CV Optimisé'}
-    </button>
+
+      <button 
+        onClick={handleAnalyze}
+        disabled={isAnalyzing}
+        className={`group flex items-center justify-center gap-4 w-full max-w-[500px] py-6 rounded-[2.5rem] text-xl font-black shadow-2xl transition-all ${
+          isAnalyzing 
+            ? 'bg-slate-200 text-slate-400 cursor-not-allowed scale-[0.98]' 
+            : 'bg-primary text-white hover:bg-primary/90 hover:scale-[1.03] hover:shadow-primary/30 active:scale-95'
+        }`}
+      >
+        {isAnalyzing ? (
+          <Loader2 size={24} className="animate-spin" />
+        ) : (
+          <Sparkles size={24} className="group-hover:animate-pulse" />
+        )}
+        {isAnalyzing ? 'Intelligence Artificielle en action...' : 'Optimiser mon CV maintenant'}
+      </button>
+      
+      {isAnalyzing && (
+        <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em] animate-pulse">
+          Analyse ATS et optimisation sémantique en cours
+        </p>
+      )}
+    </div>
   );
 }

@@ -62,8 +62,12 @@ export async function POST(req: Request) {
           `📦 Checkout completed. Mode: ${session.mode}, UserId: ${userId}, AnalysisId: ${analysisId}`,
         );
 
+        const now = new Date();
         const oneMonthFromNow = new Date();
         oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+
+        const sixMonthsFromNow = new Date();
+        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
 
         if (session.mode === "payment") {
           // One-time payment
@@ -107,8 +111,8 @@ export async function POST(req: Request) {
                 .set({
                   plan: "one_time",
                   credits: (userRecord.credits || 0) + 5,
-                  subscriptionEndsAt: oneMonthFromNow,
-                  creditsExpiry: oneMonthFromNow,
+                  subscriptionEndsAt: sixMonthsFromNow,
+                  creditsExpiry: sixMonthsFromNow, // 6 months for one-time
                 })
                 .where(eq(users.clerkId, userId));
             } else {
@@ -118,8 +122,8 @@ export async function POST(req: Request) {
                 name: session.customer_details?.name,
                 plan: "one_time",
                 credits: 5,
-                subscriptionEndsAt: oneMonthFromNow,
-                creditsExpiry: oneMonthFromNow,
+                subscriptionEndsAt: sixMonthsFromNow,
+                creditsExpiry: sixMonthsFromNow,
               });
             }
           }
@@ -143,7 +147,7 @@ export async function POST(req: Request) {
                   stripeSubscriptionId: subscriptionId,
                   subscriptionStatus: "active",
                   subscriptionEndsAt: oneMonthFromNow,
-                  creditsExpiry: oneMonthFromNow,
+                  creditsExpiry: oneMonthFromNow, // 1 month for subscriptions
                 })
                 .where(eq(users.clerkId, userId));
             } else {
