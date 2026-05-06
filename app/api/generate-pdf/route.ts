@@ -100,13 +100,34 @@ export async function POST(req: Request) {
                 <script src="https://cdn.tailwindcss.com"></script>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-                    body {
-                        font-family: 'Inter', sans-serif;
+                    @page {
+                        size: A4;
+                        margin: 0;
+                    }
+                    html, body {
                         margin: 0;
                         padding: 0;
+                        width: 100%;
+                        height: 100%;
+                        overflow: hidden;
+                        background-color: white;
+                    }
+                    body {
+                        font-family: 'Inter', sans-serif;
                         -webkit-print-color-adjust: exact;
                     }
-                    .cv-printable { margin: 0 !important; box-shadow: none !important; }
+                    #cv-ready {
+                        width: 100%;
+                        position: relative;
+                    }
+                    /* Force the CV component to fill the page regardless of its internal settings */
+                    .cv-printable {
+                        width: 100% !important;
+                        min-height: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-shadow: none !important;
+                    }
                 </style>
             </head>
             <body>
@@ -118,13 +139,36 @@ export async function POST(req: Request) {
         // ✅ Set content and wait for load
         await page.setContent(htmlContent, { waitUntil: 'load', timeout: 30000 });
         
-        // Delay for Tailwind and fonts
-        await new Promise(r => setTimeout(r, 2500));
+        // Delay for Tailwind and fonts to finish rendering
+        await new Promise(r => setTimeout(r, 2000));
+
+        // ✅ SHRINK TO FIT & FILL WIDTH LOGIC
+        await page.evaluate(() => {
+            const container = document.getElementById('cv-ready');
+            if (!container) return;
+            
+            const A4_HEIGHT_PX = 1122; // A4 height at 96dpi
+            const contentHeight = container.offsetHeight || container.scrollHeight;
+            
+            if (contentHeight > A4_HEIGHT_PX) {
+                const scale = (A4_HEIGHT_PX - 1) / contentHeight;
+                // Scale vertically and horizontally
+                container.style.transform = `scale(${scale})`;
+                container.style.transformOrigin = 'top left';
+                // CRITICAL: Expand the container width before scaling 
+                // so that after scaling it equals exactly 100% of the page width
+                container.style.width = (100 / scale) + '%';
+            } else {
+                container.style.width = '100%';
+            }
+        });
 
         const pdfBuffer = await page.pdf({
             format: 'A4',
             printBackground: true,
-            margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+            margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
+            preferCSSPageSize: true,
+            pageRanges: '1'
         });
 
         await browser.close();
