@@ -42,10 +42,6 @@ export default function AnalyzeButton({
       setError("Veuillez importer un CV ou décrire votre profil avec plus de détails (min. 50 caractères).");
       return;
     }
-    if (!jobTitle || !jobDescription) {
-      setError("L'intitulé et la description du poste sont requis pour une analyse précise.");
-      return;
-    }
 
     setIsAnalyzing(true);
     try {

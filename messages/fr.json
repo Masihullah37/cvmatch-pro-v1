@@ -1,6 +1,18 @@
 {
   "Index": {
     "title": "Optimisez votre CV pour décrocher l'emploi de vos rêves",
-    "analyze_button": "Analyser mon CV"
+    "analyze_button": "Analyser mon CV",
+    "job_panel": {
+      "title": "Le Poste",
+      "subtitle": "Cible d'Analyse",
+      "optional": "Facultatif",
+      "title_label": "Intitulé du poste",
+      "title_optional": "Optionnel",
+      "title_placeholder": "ex. Lead Product Designer",
+      "description_label": "Missions & Critères",
+      "description_optional": "Optionnel",
+      "description_placeholder": "Collez l'URL de l'offre ou décrivez les responsabilités...",
+      "footer_note": "Si vous ne remplissez pas cette partie, nous optimiserons votre CV de manière générale pour votre profil."
+    }
   }
 }

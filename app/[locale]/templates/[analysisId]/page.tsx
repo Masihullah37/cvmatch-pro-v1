@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { cvAnalyses, cvTemplates } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import Footer from "@/components/layout/Footer";
 import TemplateGrid from "@/components/templates/TemplateGrid";
 import { auth } from "@clerk/nextjs/server";
 import { AlertCircle } from "lucide-react";
@@ -119,7 +118,6 @@ export default async function TemplatesPage({
           analysisData={analysis}
         />
       </main>
-      <Footer />
     </div>
   )
 }

@@ -3,6 +3,9 @@
 import { stripe } from "@/lib/stripe";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function createCheckoutSession(
   type: "one-time" | "subscription",
@@ -67,4 +70,39 @@ export async function createCheckoutSession(
   }
 
   throw new Error("Failed to create checkout session");
+}
+
+export async function cancelMonthlySubscription(): Promise<{ success: boolean; message: string }> {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.clerkId, userId),
+  });
+
+  if (!dbUser?.stripeSubscriptionId) {
+    throw new Error("Aucun abonnement actif à annuler.");
+  }
+
+  const subscription = await stripe.subscriptions.update(dbUser.stripeSubscriptionId, {
+    cancel_at_period_end: true,
+  });
+
+  const periodEnd = new Date(subscription.current_period_end * 1000);
+  await db
+    .update(users)
+    .set({
+      subscriptionStatus: "canceled",
+      subscriptionEndsAt: periodEnd,
+      creditsExpiry: periodEnd,
+    })
+    .where(eq(users.id, dbUser.id));
+
+  return {
+    success: true,
+    message:
+      "Votre abonnement a été annulé.\nIl restera actif jusqu’à la fin de la période en cours.\nAucun renouvellement ne sera effectué.",
+  };
 }

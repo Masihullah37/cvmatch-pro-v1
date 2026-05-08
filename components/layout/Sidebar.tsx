@@ -1,5 +1,4 @@
-import { ReactNode } from 'react';
-import { LayoutDashboard, Users, Clock, Plus, Sparkles, Zap } from 'lucide-react';
+import { LayoutDashboard, Clock, Plus, Sparkles, Zap } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
@@ -52,9 +51,6 @@ export default async function Sidebar() {
        <nav className="flex-1 space-y-2">
          <Link href="/" className="flex items-center gap-3 bg-primary text-white px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-[1.02]">
            <LayoutDashboard size={18} /> Tableau de bord
-         </Link>
-         <Link href="/dashboard" className="flex items-center gap-3 text-slate-500 px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all">
-           <Users size={18} /> Candidats
          </Link>
          <Link href="/dashboard" className="flex items-center gap-3 text-slate-500 px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all">
            <Clock size={18} /> Historique

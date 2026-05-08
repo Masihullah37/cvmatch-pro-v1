@@ -152,6 +152,7 @@
 
 
 import Groq from "groq-sdk";
+import { type StructuredJobDetails } from "@/lib/utils/scraper";
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || "",
@@ -192,14 +193,30 @@ function safeParse(text: string) {
 //
 // 📊 ANALYZE CV (ATS SCORING)
 //
-export async function analyzeCV(cvText: string, jobDescription: string) {
+export async function analyzeCV(
+  cvText: string,
+  jobDescription: string,
+  structuredJobDetails?: StructuredJobDetails
+) {
   const safeCvText = cvText.substring(0, 6000);
   const safeJobDescription = jobDescription.substring(0, 3000);
 
-  const prompt = `
-Analyze this CV against the Job Description for ATS compatibility.
+const structuredContext = structuredJobDetails
+  ? `
+Structured Job Data:
+- Title: ${structuredJobDetails.title}
+- Skills: ${structuredJobDetails.skills.join(", ") || "N/A"}
+- Requirements: ${structuredJobDetails.requirements.join(" | ") || "N/A"}
+- Responsibilities: ${structuredJobDetails.responsibilities.join(" | ") || "N/A"}
+- Keyword seeds: ${structuredJobDetails.keywords.join(", ") || "N/A"}
+`
+  : "";
+
+const prompt = `
+Analyze this CV ${jobDescription.includes('Optimisation standard') ? 'for general professional standards' : 'against the Job Description for ATS compatibility'}.
 
 Return ONLY valid JSON. No explanations, no markdown.
+Ignore website navigation, cookie banners, legal notices, and any non-job-content noise.
 
 {
   "atsScore": 0,
@@ -220,8 +237,8 @@ Return ONLY valid JSON. No explanations, no markdown.
 CV:
 ${safeCvText}
 
-JD:
-${safeJobDescription}
+${jobDescription.includes('Optimisation standard') ? '' : `JD:\n${safeJobDescription}`}
+${structuredContext}
 `;
 
   try {
@@ -247,20 +264,34 @@ ${safeJobDescription}
 export async function generateOptimizedCV(
   cvText: string,
   jobDescription: string,
-  analysisResult?: any
+  analysisResult?: any,
+  structuredJobDetails?: StructuredJobDetails
 ) {
   const safeCvText = cvText.substring(0, 6000);
   const safeJobDescription = jobDescription.substring(0, 3000);
 
-  const prompt = `
+const structuredContext = structuredJobDetails
+  ? `
+Structured Job Data:
+- Title: ${structuredJobDetails.title}
+- Skills: ${structuredJobDetails.skills.join(", ") || "N/A"}
+- Requirements: ${structuredJobDetails.requirements.join(" | ") || "N/A"}
+- Responsibilities: ${structuredJobDetails.responsibilities.join(" | ") || "N/A"}
+`
+  : "";
+
+const prompt = `
 You are an expert professional CV writer.
+${jobDescription.includes('Optimisation standard') 
+  ? "Perform a high-level professional optimization. Focus on impact, clarity, and modern professional standards."
+  : "Optimize this CV specifically for the Job Description below."}
 
 STRICT RULES:
 - Match CV language (French or English)
 - Do NOT invent data
 - Extract ALL real info
 - Use STAR method
-- Integrate keywords: ${analysisResult?.keywordsMissing?.slice(0, 10).join(", ") || ""}
+- ${jobDescription.includes('Optimisation standard') ? "Maximize professional appeal." : `Integrate keywords: ${analysisResult?.keywordsMissing?.slice(0, 10).join(", ") || ""}`}
 
 Return ONLY valid JSON:
 
@@ -280,8 +311,8 @@ Return ONLY valid JSON:
 CV:
 ${safeCvText}
 
-JD:
-${safeJobDescription}
+${jobDescription.includes('Optimisation standard') ? '' : `JD:\n${safeJobDescription}`}
+${structuredContext}
 `;
 
   try {

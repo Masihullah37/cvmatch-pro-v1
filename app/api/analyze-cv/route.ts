@@ -4,9 +4,11 @@ import { cvAnalyses, users, cvTemplates } from '@/lib/db/schema';
 import { strictRateLimit } from '@/lib/rate-limit/upstash';
 import { analyzeCV, generateOptimizedCV } from '@/lib/ai/ats-analyzer';
 import { parseCVFile } from '@/lib/ai/cv-parser';
+import { extractStructuredJobDetails } from '@/lib/utils/scraper';
 import { z } from 'zod';
 import { auth } from '@clerk/nextjs/server';
 import { eq, sql } from 'drizzle-orm';
+import { getEffectiveCredits } from '@/lib/utils/subscription';
 
 const schema = z.object({
   cvUrl: z.string().url(),
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
         where: eq(users.clerkId, userId)
       });
       
-      if (!dbUser || (dbUser.credits || 0) < 1) {
+      if (!dbUser || getEffectiveCredits(dbUser) < 1) {
         return NextResponse.json({ 
           error: 'Crédits insuffisants. Veuillez passer à un plan supérieur.' 
         }, { status: 403 });
@@ -55,11 +57,18 @@ export async function POST(req: Request) {
     // Extract text from CV
     const cvText = await parseCVFile(buffer, cvUrl);
 
+    const structuredJobDetails = extractStructuredJobDetails(jobDescription);
+
     // 1. AI Analysis (ATS Score)
-    const analysisResult = await analyzeCV(cvText, jobDescription);
+    const analysisResult = await analyzeCV(cvText, jobDescription, structuredJobDetails);
 
     // 2. AI Optimization (One-time content generation)
-    const optimizedData = await generateOptimizedCV(cvText, jobDescription, analysisResult);
+    const optimizedData = await generateOptimizedCV(
+      cvText,
+      jobDescription,
+      analysisResult,
+      structuredJobDetails
+    );
 
     // 3. Save Analysis & Master JSON to DB
     const [insertedAnalysis] = await db.insert(cvAnalyses).values({

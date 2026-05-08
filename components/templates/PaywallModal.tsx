@@ -173,6 +173,11 @@ export default function PaywallModal({ isOpen, onClose, analysisId }: PaywallMod
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">Utilisé par 2,500+ candidats</p>
               </div>
             </div>
+            <p className="text-xs text-slate-500 max-w-lg leading-relaxed">
+              Votre abonnement sera renouvelé automatiquement chaque mois.
+              Vous pouvez annuler votre abonnement à tout moment depuis la section ‘Gérer mon plan’.
+              L’annulation prendra effet à la fin de la période de facturation en cours.
+            </p>
             <div className="flex items-center gap-8 opacity-50">
               <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" className="h-6" />
               <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">

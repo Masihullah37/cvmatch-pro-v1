@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
       // Use the analysisId in the URL to ensure the user lands on the specific result
       success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000"}/fr/templates/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000"}/fr/templates/${analysisId}?payment=cancelled`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000"}/fr/templates/${analysisId}?payment=canceled`,
       metadata: {
         analysisId,
         userId: userId, // No longer 'guest'
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       // success_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/templates/${analysisId}?payment=success`,
       // cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/templates/${analysisId}`,
       // success_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/dashboard/templates?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      // cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/dashboard/templates?payment=cancelled`,
+      // cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/dashboard/templates?payment=canceled`,
       // metadata: {
       //     analysisId,
       //     userId: userId || 'guest',

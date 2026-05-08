@@ -7,7 +7,7 @@ const intlMiddleware = createMiddleware(routing);
 
 const isProtectedRoute = createRouteMatcher([
   // '/api/stripe/webhook', // Ensure this matches your folder exactly
-  '/',
+  // '/', // Home page is public — no auth required
   '/api/generate-pdf',
   '/api/uploadthing',
   '/:locale/dashboard(.*)',

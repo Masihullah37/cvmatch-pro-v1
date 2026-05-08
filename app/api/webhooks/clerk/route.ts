@@ -122,7 +122,7 @@ export async function POST(req: Request) {
           try {
             const { stripe } = await import('@/lib/stripe');
             await stripe.subscriptions.cancel(dbUser.stripeSubscriptionId);
-            console.log(`[CLERK_WEBHOOK] ✅ Stripe subscription cancelled: ${dbUser.stripeSubscriptionId}`);
+            console.log(`[CLERK_WEBHOOK] ✅ Stripe subscription canceled: ${dbUser.stripeSubscriptionId}`);
           } catch (stripeErr: any) {
             console.error('[CLERK_WEBHOOK] ❌ Failed to cancel Stripe subscription:', stripeErr.message);
             // We continue anyway to ensure the DB row is deleted (GDPR)

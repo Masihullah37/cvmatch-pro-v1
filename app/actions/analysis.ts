@@ -5,10 +5,12 @@ import { cvAnalyses, cvTemplates } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
 import { analyzeCV, generateOptimizedCV } from "@/lib/ai/ats-analyzer";
 import { parseCVFile } from "@/lib/ai/cv-parser";
+import { extractStructuredJobDetails, isUrl, scrapeJobDescription } from "@/lib/utils/scraper";
 
 import { auth } from "@clerk/nextjs/server";
 import { eq, sql } from "drizzle-orm";
 import { users } from "@/lib/db/schema";
+import { getEffectiveCredits } from "@/lib/utils/subscription";
 
 export async function performCVAnalysis(formData: FormData) {
   // const { userId } = await auth();
@@ -52,12 +54,37 @@ export async function performCVAnalysis(formData: FormData) {
   }
 
   const cvFile = formData.get('cvFile') as File | null;
-  const jobTitle = formData.get('jobTitle') as string;
-  const jobDescription = formData.get('jobDescription') as string;
+  let jobTitle = formData.get('jobTitle') as string;
+  let jobDescription = formData.get('jobDescription') as string;
   const profileDescription = formData.get('profileDescription') as string | null;
 
-  if ((!cvFile && !profileDescription) || !jobDescription) {
-    throw new Error("Missing required data: CV file or Profile Description and Job Description are required.");
+  // Validation: We need at least a CV source
+  if (!cvFile && !profileDescription) {
+    throw new Error("Missing required data: CV file or Profile Description is required.");
+  }
+
+  // URL Scraping Logic
+  if (jobDescription && isUrl(jobDescription)) {
+    console.log("=== DETECTED JOB URL, SCRAPING... ===");
+    try {
+      const scrapedContent = await scrapeJobDescription(jobDescription);
+      console.log(`=== SCRAPING SUCCESS: ${scrapedContent.length} chars extracted ===`);
+      console.log("=== SCRAPED PREVIEW ===", scrapedContent.substring(0, 500));
+      jobDescription = scrapedContent;
+    } catch (err: any) {
+      console.warn("=== URL SCRAPING FAILED ===", err.message);
+      throw new Error(
+        "Impossible d'extraire le contenu de l'URL fournie. Veuillez copier-coller la description du poste manuellement."
+      );
+    }
+  }
+
+  // Fallback for missing job info
+  if (!jobTitle || jobTitle.trim() === "") {
+    jobTitle = "Optimisation Générale";
+  }
+  if (!jobDescription || jobDescription.trim() === "") {
+    jobDescription = "Profil professionnel général et polyvalent. Optimisation standard basée sur les meilleures pratiques du marché.";
   }
 
   let cvText = "";
@@ -80,12 +107,22 @@ export async function performCVAnalysis(formData: FormData) {
   console.log("Length:", cvText.length);
   console.log("First 300 chars:", cvText.substring(0, 300));
 
+  const structuredJobDetails = extractStructuredJobDetails(jobDescription);
+  if (jobTitle === "Optimisation Générale" && structuredJobDetails.title) {
+    jobTitle = structuredJobDetails.title;
+  }
+
   // 2. Analyze ATS
-  const analysisResult = await analyzeCV(cvText, jobDescription);
+  const analysisResult = await analyzeCV(cvText, jobDescription, structuredJobDetails);
 
   // 3. Generate Optimized Content
   // This will transform either the CV text OR the profile description into a professional CV format
-  const optimizedContent = await generateOptimizedCV(cvText, jobDescription, analysisResult);
+  const optimizedContent = await generateOptimizedCV(
+    cvText,
+    jobDescription,
+    analysisResult,
+    structuredJobDetails
+  );
 
   // 4. Create Analysis Record
   let newAnalysis: typeof cvAnalyses.$inferSelect;
@@ -122,7 +159,7 @@ export async function unlockOptimizedCV(analysisId: string) {
     where: eq(users.clerkId, userId)
   });
 
-  if (!dbUser || (dbUser.credits || 0) < 1) {
+  if (!dbUser || getEffectiveCredits(dbUser) < 1) {
     throw new Error("Crédits insuffisants.");
   }
 

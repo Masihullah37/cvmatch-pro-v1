@@ -162,7 +162,8 @@
 //   );
 // }
 
-
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { cvAnalyses, cvTemplates, users } from "@/lib/db/schema";
@@ -177,6 +178,7 @@ import ImprovementSuggestions from "@/components/results/ImprovementSuggestions"
 import { Link } from "@/i18n/routing";
 import { ArrowRight, Lock } from "lucide-react";
 import UnlockButton from "@/components/results/UnlockButton";
+import PaymentSync from "@/components/results/PaymentSync";
 
 export default async function ResultsPage({
   params,
@@ -195,8 +197,8 @@ export default async function ResultsPage({
 
   const dbUser = userId
     ? await db.query.users.findFirst({
-      where: eq(users.clerkId, userId),
-    })
+        where: eq(users.clerkId, userId),
+      })
     : null;
 
   const userCredits = dbUser?.credits || 0;
@@ -224,6 +226,7 @@ export default async function ResultsPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/10">
+      <PaymentSync />
       <main className="flex-1 container mx-auto py-10 px-4">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -262,7 +265,7 @@ export default async function ResultsPage({
             {/* FLAWS */}
             <div className="relative group">
               <FlawsList
-                flaws={analysis.flaws as string[] || []}
+                flaws={(analysis.flaws as string[]) || []}
                 isGated={isTeaser}
               />
             </div>
@@ -270,7 +273,7 @@ export default async function ResultsPage({
             {/* SUGGESTIONS */}
             <div className="relative">
               <ImprovementSuggestions
-                suggestions={analysis.suggestions as string[] || []}
+                suggestions={(analysis.suggestions as string[]) || []}
                 isGated={isTeaser}
               />
 
@@ -320,19 +323,23 @@ export default async function ResultsPage({
                   Mots-clés trouvés
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {(analysis.keywordsFound as string[])?.slice(0, isTeaser ? 4 : undefined).map((kw, i) => (
-                    <span
-                      key={i}
-                      className="bg-green-500/10 text-green-700 px-2 py-1 rounded-md text-xs font-medium border border-green-500/20"
-                    >
-                      {kw}
-                    </span>
-                  ))}
-                  {isTeaser && (analysis.keywordsFound as string[])?.length > 4 && (
-                    <span className="text-muted-foreground text-xs italic ml-1">
-                      +{(analysis.keywordsFound as string[]).length - 4} autres...
-                    </span>
-                  )}
+                  {(analysis.keywordsFound as string[])
+                    ?.slice(0, isTeaser ? 4 : undefined)
+                    .map((kw, i) => (
+                      <span
+                        key={i}
+                        className="bg-green-500/10 text-green-700 px-2 py-1 rounded-md text-xs font-medium border border-green-500/20"
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                  {isTeaser &&
+                    (analysis.keywordsFound as string[])?.length > 4 && (
+                      <span className="text-muted-foreground text-xs italic ml-1">
+                        +{(analysis.keywordsFound as string[]).length - 4}{" "}
+                        autres...
+                      </span>
+                    )}
                 </div>
               </div>
 
@@ -343,7 +350,10 @@ export default async function ResultsPage({
                 {isTeaser ? (
                   <div className="flex flex-wrap gap-2 blur-[4px] opacity-40 select-none">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <span key={i} className="bg-destructive/10 text-destructive px-3 py-1 rounded-md text-xs font-medium border border-destructive/20">
+                      <span
+                        key={i}
+                        className="bg-destructive/10 text-destructive px-3 py-1 rounded-md text-xs font-medium border border-destructive/20"
+                      >
                         Mot-clé masqué
                       </span>
                     ))}
@@ -365,8 +375,6 @@ export default async function ResultsPage({
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

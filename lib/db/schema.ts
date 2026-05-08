@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, text, integer, jsonb, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
 
 export const planEnum = pgEnum('plan', ['free', 'one_time', 'monthly']);
-export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'cancelled', 'past_due']);
+export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'canceled', 'past_due']);
 export const analysisStatusEnum = pgEnum('status', ['processing', 'completed', 'failed']);
 export const paymentTypeEnum = pgEnum('payment_type', ['one_time', 'subscription']);
 export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'completed', 'failed', 'refunded']);
