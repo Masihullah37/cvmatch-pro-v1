@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { cvAnalyses, users, cvGenerations } from "@/lib/db/schema";
+import { cvAnalyses, users, cvTemplates } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
@@ -61,17 +61,24 @@ export default async function DashboardPage() {
   let generatedCvs: any[] = [];
 
   if (dbUser) {
+    // 1. Fetch Analyses
     analyses = await db.query.cvAnalyses.findMany({
       where: eq(cvAnalyses.userId, dbUser.id),
       orderBy: [desc(cvAnalyses.createdAt)],
       limit: 10,
     });
 
-    generatedCvs = await db.query.cvGenerations.findMany({
-      where: eq(cvGenerations.userId, dbUser.id),
-      orderBy: [desc(cvGenerations.createdAt)],
-      limit: 20,
-    });
+    // 2. Query cvTemplates through the user's analyses
+    if (analyses.length > 0) {
+      const { inArray } = await import("drizzle-orm");
+      const analysisIds = analyses.map((a) => a.id);
+
+      generatedCvs = await db.query.cvTemplates.findMany({
+        where: inArray(cvTemplates.analysisId, analysisIds),
+        orderBy: [desc(cvTemplates.createdAt)],
+        limit: 20,
+      });
+    }
   }
 
   const credits = dbUser?.credits ?? 0;
@@ -184,8 +191,6 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
-        {/* 
-        if (!dbUser) return null; */}
 
         {dbUser.plan !== "free" && (
           <div
@@ -263,7 +268,7 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Historique des CVs (New Section) */}
+        {/* Historique des CVs (Refactored to group by analysis) */}
         <div className="mb-12">
           <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3 mb-8">
             <History className="text-primary" />
@@ -278,34 +283,40 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {generatedCvs.map((cv) => (
-                <div
-                  key={cv.id}
-                  className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all group"
-                >
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
-                      <FileText className="text-indigo-500" />
+              {/* Group by analysisId — show one card per analysis */}
+              {Array.from(
+                new Map(generatedCvs.map((cv) => [cv.analysisId, cv])).values(),
+              ).map((cv) => {
+                const parentAnalysis = analyses.find(
+                  (a) => a.id === cv.analysisId,
+                );
+                return (
+                  <div
+                    key={cv.analysisId}
+                    className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all group"
+                  >
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
+                        <FileText className="text-indigo-500" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-slate-900 text-sm line-clamp-1">
+                          {parentAnalysis?.jobTitle || "Analyse CV"}
+                        </h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">
+                          {new Date(cv.createdAt).toLocaleDateString("fr-FR")}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-black text-slate-900 text-sm">
-                        {cv.templateStyle}
-                      </h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">
-                        {new Date(cv.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
                     <Link
-                      href={`/templates/${cv.analysisId}?templateId=${cv.templateId}`}
-                      className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-center hover:bg-slate-800 transition-all"
+                      href={`/templates/${cv.analysisId}`}
+                      className="w-full block bg-slate-900 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest text-center hover:bg-slate-800 transition-all"
                     >
-                      Modifier & Télécharger
+                      Voir mes CVs
                     </Link>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -13,26 +13,7 @@ import { users } from "@/lib/db/schema";
 import { getEffectiveCredits } from "@/lib/utils/subscription";
 
 export async function performCVAnalysis(formData: FormData) {
-  // const { userId } = await auth();
-  // if (!userId) {
-  //   throw new Error("Unauthorized. Please sign in.");
-  // }
-
-  // // 1. Resolve/Sync User
-  // let dbUser = await db.query.users.findFirst({
-  //   where: eq(users.clerkId, userId)
-  // });
-
-  // if (!dbUser) {
-  //   // If user record doesn't exist for some reason, create it
-  //   const [newUser] = await db.insert(users).values({
-  //     clerkId: userId,
-  //     credits: 0, 
-  //   }).returning();
-  //   dbUser = newUser;
-  // }
-
-
+  
   const { userId } = await auth();
   let dbUserId: string | null = null;
 

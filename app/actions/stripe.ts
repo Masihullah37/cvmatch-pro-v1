@@ -26,9 +26,9 @@ export async function createCheckoutSession(
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Pack 10 CV Optimisés (Paiement Unique)",
+              name: "Pack 5 CV Optimisés (Paiement Unique)",
               description:
-                "Débloquez vos 10 modèles de CV parfaitement adaptés pour l'offre d'emploi.",
+                "Débloquez vos 12 modèles de CV parfaitement adaptés pour l'offre d'emploi.",
             },
             unit_amount: 290, // 2.90 EUR
           },
@@ -45,7 +45,6 @@ export async function createCheckoutSession(
       },
     });
   } else {
-
     session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -72,7 +71,10 @@ export async function createCheckoutSession(
   throw new Error("Failed to create checkout session");
 }
 
-export async function cancelMonthlySubscription(): Promise<{ success: boolean; message: string }> {
+export async function cancelMonthlySubscription(): Promise<{
+  success: boolean;
+  message: string;
+}> {
   const { userId } = await auth();
   if (!userId) {
     throw new Error("Unauthorized");
@@ -86,9 +88,12 @@ export async function cancelMonthlySubscription(): Promise<{ success: boolean; m
     throw new Error("Aucun abonnement actif à annuler.");
   }
 
-  const subscription = await stripe.subscriptions.update(dbUser.stripeSubscriptionId, {
-    cancel_at_period_end: true,
-  });
+  const subscription = await stripe.subscriptions.update(
+    dbUser.stripeSubscriptionId,
+    {
+      cancel_at_period_end: true,
+    },
+  );
 
   const periodEnd = new Date(subscription.current_period_end * 1000);
   await db
