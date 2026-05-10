@@ -1,98 +1,115 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { users, cvTemplates, cvGenerations, cvAnalyses } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import puppeteer from 'puppeteer';
-import React from 'react';
-import { CVRenderer } from '@/components/templates/CVRenderer';
+import puppeteer from "puppeteer";
+import React from "react";
+import { CVRenderer } from "@/components/templates/CVRenderer";
+import { pdfRateLimit } from "@/lib/rate-limit/upstash";
 
 // CACHE BUSTER: 2026-05-05-V3
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 /**
  * PDF GENERATION ROUTE
  */
 export async function POST(req: Request) {
-    // CRITICAL FIX: Use eval('require') to completely bypass Next.js static analysis for react-dom/server
-    const render = eval('require')('react-dom/server').renderToStaticMarkup;
-    
-    let browser;
-    try {
-        const { userId } = await auth();
-        const body = await req.json();
-        const { templateId, analysisId, templateData } = body;
+  // CRITICAL FIX: Use eval('require') to completely bypass Next.js static analysis for react-dom/server
+  const render = eval("require")("react-dom/server").renderToStaticMarkup;
 
-        if (!templateId || !analysisId) {
-            return NextResponse.json({ error: "Missing IDs" }, { status: 400 });
-        }
+  let browser;
+  try {
+    const { userId } = await auth();
+    const body = await req.json();
+    const { templateId, analysisId, templateData } = body;
 
-        const template = await db.query.cvTemplates.findFirst({
-            where: eq(cvTemplates.id, templateId),
-        });
+    if (!templateId || !analysisId) {
+      return NextResponse.json({ error: "Missing IDs" }, { status: 400 });
+    }
 
-        const analysis = await db.query.cvAnalyses.findFirst({
-            where: eq(cvAnalyses.id, analysisId),
-        });
+    const template = await db.query.cvTemplates.findFirst({
+      where: eq(cvTemplates.id, templateId),
+    });
 
-        if (!template || !analysis) {
-            return NextResponse.json({ error: "Data not found" }, { status: 404 });
-        }
+    const analysis = await db.query.cvAnalyses.findFirst({
+      where: eq(cvAnalyses.id, analysisId),
+    });
 
-        // 1. Permission check
-        if (userId) {
-            const dbUser = await db.query.users.findFirst({
-                where: eq(users.clerkId, userId),
-            });
-            if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!template || !analysis) {
+      return NextResponse.json({ error: "Data not found" }, { status: 404 });
+    }
 
-            const isOwner = analysis.userId === dbUser.id;
-            const isPro = dbUser.plan === 'monthly';
+    // 1. Permission check
+    if (userId) {
+      const dbUser = await db.query.users.findFirst({
+        where: eq(users.clerkId, userId),
+      });
+      if (!dbUser)
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-            if (!isOwner && !isPro && !template.isPaid) {
-                return NextResponse.json({ error: "Paiement requis." }, { status: 403 });
-            }
-        }
+      const isOwner = analysis.userId === dbUser.id;
+      const isPro = dbUser.plan === "monthly";
 
-        // 2. Browser Launch
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox',
-                '--font-render-hinting=none',
-                '--disable-dev-shm-usage'
-            ]
-        });
-
-        const page = await browser.newPage();
-
-        // ✅ Block external trackers to speed up load
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-            const url = request.url();
-            if (url.includes('google-analytics') || url.includes('clerk')) {
-                request.abort();
-            } else {
-                request.continue();
-            }
-        });
-
-        await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
-
-        // ✅ Render CV to HTML string
-        const displayData = templateData || template.templateData;
-        const cvHtml = render(
-            React.createElement(CVRenderer, {
-                template: { ...template, templateData: displayData },
-                analysisData: analysis,
-                isPaid: true,
-                isPreview: false
-            })
+      if (!isOwner && !isPro && !template.isPaid) {
+        return NextResponse.json(
+          { error: "Paiement requis." },
+          { status: 403 },
         );
+      }
+    }
 
-        const htmlContent = `
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+    const limitKey = userId ? `pdf_user_${userId}` : `pdf_ip_${ip}`;
+    const { success: pdfOk } = await pdfRateLimit.limit(limitKey);
+
+    if (!pdfOk) {
+      return NextResponse.json(
+        { error: "Trop de téléchargements. Réessayez dans 1 heure." },
+        { status: 429 },
+      );
+    }
+
+    // 2. Browser Launch
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--font-render-hinting=none",
+        "--disable-dev-shm-usage",
+      ],
+    });
+
+    const page = await browser.newPage();
+
+    // ✅ Block external trackers to speed up load
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      const url = request.url();
+      if (url.includes("google-analytics") || url.includes("clerk")) {
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
+
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+
+    // ✅ Render CV to HTML string
+    const displayData = templateData || template.templateData;
+    const cvHtml = render(
+      React.createElement(CVRenderer, {
+        template: { ...template, templateData: displayData },
+        analysisData: analysis,
+        isPaid: true,
+        isPreview: false,
+      }),
+    );
+
+    const htmlContent = `
             <!DOCTYPE html>
             <html>
             <head>
@@ -136,51 +153,50 @@ export async function POST(req: Request) {
             </html>
         `;
 
-        // ✅ Set content and wait for load
-        await page.setContent(htmlContent, { waitUntil: 'load', timeout: 30000 });
-        
-        // Delay for Tailwind and fonts to finish rendering
-        await new Promise(r => setTimeout(r, 2000));
+    // ✅ Set content and wait for load
+    await page.setContent(htmlContent, { waitUntil: "load", timeout: 30000 });
 
-        // ✅ SHRINK TO FIT & FILL WIDTH LOGIC
-        await page.evaluate(() => {
-            const container = document.getElementById('cv-ready');
-            if (!container) return;
-            
-            const A4_HEIGHT_PX = 1122; // A4 height at 96dpi
-            const contentHeight = container.offsetHeight || container.scrollHeight;
-            
-            if (contentHeight > A4_HEIGHT_PX) {
-                const scale = (A4_HEIGHT_PX - 1) / contentHeight;
-                // Scale vertically and horizontally
-                container.style.transform = `scale(${scale})`;
-                container.style.transformOrigin = 'top left';
-                // CRITICAL: Expand the container width before scaling 
-                // so that after scaling it equals exactly 100% of the page width
-                container.style.width = (100 / scale) + '%';
-            } else {
-                container.style.width = '100%';
-            }
-        });
+    // Delay for Tailwind and fonts to finish rendering
+    await new Promise((r) => setTimeout(r, 2000));
 
-        const pdfBuffer = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
-            preferCSSPageSize: true,
-            pageRanges: '1'
-        });
+    // ✅ SHRINK TO FIT & FILL WIDTH LOGIC
+    await page.evaluate(() => {
+      const container = document.getElementById("cv-ready");
+      if (!container) return;
 
-        await browser.close();
+      const A4_HEIGHT_PX = 1122; // A4 height at 96dpi
+      const contentHeight = container.offsetHeight || container.scrollHeight;
 
-        return NextResponse.json({
-            pdfBase64: Buffer.from(pdfBuffer).toString('base64'),
-            fileName: `CV_${template.templateStyle}.pdf`
-        });
+      if (contentHeight > A4_HEIGHT_PX) {
+        const scale = (A4_HEIGHT_PX - 1) / contentHeight;
+        // Scale vertically and horizontally
+        container.style.transform = `scale(${scale})`;
+        container.style.transformOrigin = "top left";
+        // CRITICAL: Expand the container width before scaling
+        // so that after scaling it equals exactly 100% of the page width
+        container.style.width = 100 / scale + "%";
+      } else {
+        container.style.width = "100%";
+      }
+    });
 
-    } catch (error: any) {
-        if (browser) await browser.close();
-        console.error('PDF Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
+      preferCSSPageSize: true,
+      pageRanges: "1",
+    });
+
+    await browser.close();
+
+    return NextResponse.json({
+      pdfBase64: Buffer.from(pdfBuffer).toString("base64"),
+      fileName: `CV_${template.templateStyle}.pdf`,
+    });
+  } catch (error: any) {
+    if (browser) await browser.close();
+    console.error("PDF Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
