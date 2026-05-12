@@ -317,8 +317,8 @@ export async function POST(req: Request) {
         const userId = session.metadata?.userId;
         const analysisId = session.metadata?.analysisId;
 
-        const sixMonthsFromNow = new Date();
-        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+        const fortyFiveDaysFromNow = new Date();
+        fortyFiveDaysFromNow.setDate(fortyFiveDaysFromNow.getDate() + 45);
 
         if (session.mode === "payment") {
           await db.insert(payments).values({
@@ -360,8 +360,8 @@ export async function POST(req: Request) {
                 .set({
                   plan: "one_time",
                   credits: (userRecord.credits || 0) + 5,
-                  subscriptionEndsAt: sixMonthsFromNow,
-                  creditsExpiry: sixMonthsFromNow,
+                  subscriptionEndsAt: fortyFiveDaysFromNow,
+                  creditsExpiry: fortyFiveDaysFromNow,
                 })
                 .where(eq(users.clerkId, userId));
             } else {
@@ -371,8 +371,8 @@ export async function POST(req: Request) {
                 name: session.customer_details?.name ?? undefined,
                 plan: "one_time",
                 credits: 5,
-                subscriptionEndsAt: sixMonthsFromNow,
-                creditsExpiry: sixMonthsFromNow,
+                subscriptionEndsAt: fortyFiveDaysFromNow,
+                creditsExpiry: fortyFiveDaysFromNow,
               });
             }
           }

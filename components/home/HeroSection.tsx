@@ -2,14 +2,29 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { ArrowDown, Sparkles, Zap, CheckCircle2 } from "lucide-react";
+import { ArrowDown, Sparkles, Zap, CheckCircle2, Upload, Cpu, BarChart3, Download } from "lucide-react";
 
 const FLIP_WORDS = ["recrutements", "CV", "candidatures", "carrière"];
 const FLIP_COLORS = ["#34d399", "#fb923c", "#34d399", "#fb923c"];
 
+const STEPS = [
+  { icon: Upload, title: "Importez CV", color: "#3b82f6" },
+  { icon: Cpu, title: "L'Offre", color: "#8b5cf6" },
+  { icon: BarChart3, title: "Score ATS", color: "#f97316" },
+  { icon: Download, title: "Boostez", color: "#10b981" },
+];
+
 export default function HeroSection() {
   const [wordIndex, setWordIndex] = useState(0);
   const [flipping, setFlipping] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveStep((s) => (s + 1) % STEPS.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -100,18 +115,7 @@ export default function HeroSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           {/* Left — Text */}
           <div className="space-y-8">
-            {/* Badge */}
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border"
-              style={{
-                background: "rgba(99,102,241,0.1)",
-                borderColor: "rgba(99,102,241,0.3)",
-                color: "#818cf8",
-              }}
-            >
-              <Sparkles size={12} />
-              IA Optimisation ATS
-            </div>
+
 
             {/* Headline */}
             <div>
@@ -180,13 +184,13 @@ export default function HeroSection() {
             <div className="flex flex-wrap gap-4">
               <a
                 href="#analyze"
-                className="group inline-flex items-center gap-3 font-black text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105"
+                className="group inline-flex items-center gap-3 font-black text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-emerald-600"
                 style={{
-                  background: "hsl(221, 100%, 50%)",
+                  background: "#10b981",
                   color: "white",
                   padding: "16px 32px",
                   borderRadius: 16,
-                  boxShadow: "0 20px 40px rgba(59,130,246,0.3)",
+                  boxShadow: "0 20px 40px rgba(16,185,129,0.3)",
                   textDecoration: "none",
                 }}
               >
@@ -195,7 +199,7 @@ export default function HeroSection() {
               </a>
               <a
                 href="#pricing"
-                className="inline-flex items-center gap-3 font-bold text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105"
+                className="inline-flex items-center gap-3 font-bold text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-white/10 hover:border-emerald-500/50"
                 style={{
                   background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.12)",
@@ -209,133 +213,61 @@ export default function HeroSection() {
               </a>
             </div>
 
-            {/* Social proof */}
-            <div className="flex items-center gap-4 pt-2">
-              <div className="flex" style={{ marginLeft: 0 }}>
-                {["#10b981", "#3b82f6", "#f97316", "#a855f7"].map(
-                  (color, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        background: color,
-                        borderRadius: "50%",
-                        border: "2px solid #020617",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "white",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        marginLeft: i > 0 ? -8 : 0,
-                      }}
-                    >
-                      {String.fromCharCode(65 + i)}
-                    </div>
-                  ),
-                )}
-              </div>
-              <p className="text-sm" style={{ color: "#94a3b8" }}>
-                <span style={{ color: "white", fontWeight: 700 }}>+500</span>{" "}
-                candidats optimisés cette semaine
-              </p>
+            <div className="flex items-center gap-3 pt-2">
+               <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center gap-2">
+                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Disponible 24/7</span>
+               </div>
+               <p className="text-sm text-slate-500 font-medium italic">
+                 "Optimisez votre avenir dès aujourd'hui"
+               </p>
             </div>
           </div>
 
-          {/* Right — Character image */}
+          {/* Right — Character image & Animation */}
           <div className="relative hidden lg:flex items-center justify-center">
-            {/* Floating ATS card */}
-            <div
-              className="absolute z-20"
-              style={{
-                left: -20,
-                top: 40,
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 16,
-                padding: 16,
-                animation: "heroFloat 3s ease-in-out infinite",
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    background: "rgba(52,211,153,0.2)",
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <CheckCircle2 size={20} style={{ color: "#34d399" }} />
-                </div>
-                <div>
-                  <p style={{ color: "white", fontSize: 11, fontWeight: 900 }}>
-                    Score ATS
-                  </p>
-                  <p
+            {/* Steps circular animation */}
+            <div className="absolute inset-0 z-20 pointer-events-none">
+              {STEPS.map((step, i) => {
+                const angle = (i * 90) - 45; // Start from top-leftish
+                const radius = 240;
+                const isActive = i === activeStep;
+                const Icon = step.icon;
+                
+                return (
+                  <div
+                    key={i}
+                    className="absolute transition-all duration-700 ease-in-out"
                     style={{
-                      color: "#34d399",
-                      fontSize: 20,
-                      fontWeight: 900,
-                      lineHeight: 1.2,
+                      left: `calc(50% + ${radius * Math.cos((angle * Math.PI) / 180)}px)`,
+                      top: `calc(50% + ${radius * Math.sin((angle * Math.PI) / 180)}px)`,
+                      transform: "translate(-50%, -50%)",
                     }}
                   >
-                    87%
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Floating CV card */}
-            <div
-              className="absolute z-20"
-              style={{
-                right: -10,
-                bottom: 60,
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 16,
-                padding: 16,
-                animation: "heroFloat 4s ease-in-out infinite",
-                animationDelay: "1s",
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    background: "rgba(251,146,60,0.2)",
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Sparkles size={18} style={{ color: "#fb923c" }} />
-                </div>
-                <div>
-                  <p style={{ color: "white", fontSize: 11, fontWeight: 900 }}>
-                    CVs Générés
-                  </p>
-                  <p
-                    style={{
-                      color: "#fb923c",
-                      fontSize: 20,
-                      fontWeight: 900,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    12 styles
-                  </p>
-                </div>
-              </div>
+                    <div 
+                      className={`flex flex-col items-center gap-2 transition-all duration-500 ${isActive ? 'scale-110' : 'scale-90 opacity-40 blur-[1px]'}`}
+                    >
+                      <div 
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-500"
+                        style={{
+                          background: isActive ? step.color : 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${isActive ? 'white' : 'rgba(255,255,255,0.1)'}`,
+                          boxShadow: isActive ? `0 0 40px ${step.color}60` : 'none',
+                        }}
+                      >
+                        <Icon size={24} color={isActive ? 'white' : '#94a3b8'} />
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap px-2 py-1 rounded-lg ${isActive ? 'bg-white text-slate-900' : 'text-slate-500'}`}>
+                        {step.title}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Rotating orbit ring */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] border border-white/5 rounded-full animate-[spin_20s_linear_infinite]" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-dashed border-primary/10 rounded-full animate-[spin_30s_linear_infinite_reverse]" />
             </div>
 
             {/* Character image */}
@@ -346,18 +278,18 @@ export default function HeroSection() {
                   position: "absolute",
                   inset: 0,
                   background:
-                    "linear-gradient(to bottom, rgba(99,102,241,0.2), transparent)",
-                  borderRadius: 48,
+                    "radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)",
+                  borderRadius: "50%",
                   filter: "blur(40px)",
+                  animation: "pulse 4s ease-in-out infinite",
                 }}
               />
 
               <Image
                 src="/hero.png"
-                alt="CVBoost AI Character"
+                alt="OuiCV AI Character"
                 fill
                 className="object-contain"
-                // Removed position: 'relative' to resolve the conflict with 'fill'
                 style={{
                   zIndex: 10,
                   filter: "drop-shadow(0 40px 80px rgba(0,0,0,0.5))",
@@ -369,28 +301,15 @@ export default function HeroSection() {
         </div>
       </div>
 
-      {/* Scroll indicator */}
-      <div
-        className="absolute flex flex-col items-center gap-2 animate-bounce"
-        style={{
-          bottom: 32,
-          left: "50%",
-          transform: "translateX(-50%)",
-          color: "#475569",
-        }}
-      >
-        <p
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.15em",
-          }}
-        >
-          Commencer
-        </p>
-        <ArrowDown size={16} />
-      </div>
+      {/* Additional styles for pulse */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.05); }
+        }
+      `}</style>
+
+
 
       {/* Float animation */}
       <style>{`

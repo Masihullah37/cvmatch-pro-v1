@@ -182,6 +182,7 @@ import {
 import { Link } from '@/i18n/routing';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { motion } from 'framer-motion';
 
 interface SidebarProps {
   credits?: number;
@@ -233,9 +234,9 @@ export default function SidebarClient({ credits = 0, planName = 'Gratuit' }: Sid
     'text-slate-500 bg-slate-100';
 
   const navItems = [
-    { href: '/', label: 'Nouvelle Analyse', icon: Plus, accent: true },
+    { href: '/#analyze', label: 'Nouvelle Analyse', icon: Plus, accent: true },
     { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { href: '/dashboard', label: 'Historique', icon: Clock },
+    { href: '/dashboard#historique', label: 'Historique', icon: Clock },
     { href: '/dashboard/settings', label: 'Paramètres', icon: Settings },
   ];
 
@@ -259,13 +260,8 @@ export default function SidebarClient({ credits = 0, planName = 'Gratuit' }: Sid
           />
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col overflow-y-auto">
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <Image src="/ouicvlogo.png" alt="Logo" width={34} height={34} className="rounded-xl" />
-                <span className="font-black text-slate-900 text-lg">
-                  CV<span className="text-primary">Boost</span>
-                </span>
-              </div>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-white">
+              <Image src="/ouicvlogo.png" alt="Logo" width={110} height={36} className="object-contain" />
               <button
                 onClick={() => setMobileOpen(false)}
                 className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
@@ -313,14 +309,14 @@ export default function SidebarClient({ credits = 0, planName = 'Gratuit' }: Sid
 
       {/* ── Desktop: fixed sidebar ─────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-40 bg-white border-r border-slate-100 transition-all duration-300 no-print overflow-hidden ${
+        className={`hidden md:flex flex-col fixed top-0 left-0 bottom-0 z-[60] bg-white border-r border-slate-100 transition-all duration-300 no-print ${
           collapsed ? 'w-20' : 'w-64'
         }`}
       >
-        {/* Orange toggle button — always visible */}
+        {/* Orange toggle button — improved visibility */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3.5 top-20 z-50 w-7 h-7 bg-orange-500 hover:bg-orange-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
+          className="absolute -right-3.5 top-24 z-[70] w-7 h-7 bg-orange-500 hover:bg-orange-600 text-white rounded-full shadow-[0_4px_12px_rgba(249,115,22,0.4)] flex items-center justify-center transition-all hover:scale-110 border-2 border-white"
           title={collapsed ? 'Expand' : 'Collapse'}
         >
           {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
@@ -328,12 +324,22 @@ export default function SidebarClient({ credits = 0, planName = 'Gratuit' }: Sid
 
         {/* Logo */}
         <div className={`flex items-center gap-3 p-5 border-b border-slate-100 ${collapsed ? 'justify-center' : ''}`}>
-          <Image src="/ouicvlogo.png" alt="Logo" width={34} height={34} className="rounded-xl shrink-0" />
-          {!collapsed && (
-            <span className="font-black text-slate-900 tracking-tight whitespace-nowrap">
-              CV<span className="text-primary">Boost</span>
-            </span>
-          )}
+          <motion.div
+            animate={{ 
+              filter: ["drop-shadow(0 0 0px rgba(16, 185, 129, 0))", "drop-shadow(0 0 12px rgba(16, 185, 129, 0.3))", "drop-shadow(0 0 0px rgba(16, 185, 129, 0))"]
+            }}
+            transition={{ duration: 4, repeat: Infinity }}
+            className="relative"
+          >
+            <Image 
+              src="/ouicvlogo.png" 
+              alt="Logo" 
+              width={collapsed ? 40 : 140} 
+              height={collapsed ? 40 : 46} 
+              className="object-contain shrink-0 mix-blend-multiply"
+              priority
+            />
+          </motion.div>
         </div>
 
         {/* Nav */}

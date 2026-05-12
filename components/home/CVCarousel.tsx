@@ -17,47 +17,58 @@ const MOCK_CVS = [
 
 const ALL_CVS = [...MOCK_CVS, ...MOCK_CVS];
 
-export default function CVCarousel() {
+interface CVCarouselProps {
+  theme?: 'dark' | 'light';
+}
+
+export default function CVCarousel({ theme = 'dark' }: CVCarouselProps) {
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#020617' : 'transparent';
+  const textColor = isDark ? 'white' : '#0f172a';
+  const subTextColor = isDark ? '#64748b' : '#64748b';
+  const badgeBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+  const badgeBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  const accentColor = 'hsl(142, 71%, 45%)'; // Emerald Green
+
   return (
-    <section style={{ padding: '96px 0', background: '#020617', overflow: 'hidden' }}>
+    <section style={{ padding: '96px 0', background: bgColor, overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px 56px', textAlign: 'center' }}>
         <div
           className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-6"
           style={{
             padding: '8px 16px',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: badgeBg,
+            border: `1px solid ${badgeBorder}`,
             borderRadius: 999,
-            color: '#64748b',
+            color: subTextColor,
           }}
         >
           ✦ Vos modèles de CV
         </div>
         <h2
           className="font-black tracking-tight"
-          style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: 'white', marginBottom: 16, lineHeight: 1.1 }}
+          style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: textColor, marginBottom: 16, lineHeight: 1.1 }}
         >
-          5 designs professionnels,{' '}
-          <span style={{ color: 'hsl(221, 100%, 60%)' }}>optimisés pour vous</span>
+          Des designs professionnels,{' '}
+          <span style={{ color: accentColor }}>optimisés pour vous</span>
         </h2>
-        <p style={{ color: '#64748b', fontSize: 18, maxWidth: 480, margin: '0 auto', fontWeight: 500 }}>
+        <p style={{ color: subTextColor, fontSize: 18, maxWidth: 480, margin: '0 auto', fontWeight: 500 }}>
           Chaque CV est généré avec votre contenu, adapté au poste, et prêt à être téléchargé.
         </p>
       </div>
 
       {/* Carousel */}
       <div style={{ position: 'relative' }}>
-        {/* Left fade */}
+        {/* Fades */}
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: 120,
-          background: 'linear-gradient(to right, #020617, transparent)',
+          background: `linear-gradient(to right, ${isDark ? '#020617' : 'var(--background)'}, transparent)`,
           zIndex: 10, pointerEvents: 'none',
         }} />
-        {/* Right fade */}
         <div style={{
           position: 'absolute', right: 0, top: 0, bottom: 0, width: 120,
-          background: 'linear-gradient(to left, #020617, transparent)',
+          background: `linear-gradient(to left, ${isDark ? '#020617' : 'var(--background)'}, transparent)`,
           zIndex: 10, pointerEvents: 'none',
         }} />
 
@@ -81,19 +92,21 @@ export default function CVCarousel() {
               <div
                 style={{
                   borderRadius: 24,
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.05)',
                   overflow: 'hidden',
-                  background: `linear-gradient(135deg, ${cv.color}33, ${cv.color}11)`,
+                  background: isDark 
+                    ? `linear-gradient(135deg, ${cv.color}33, ${cv.color}11)`
+                    : `white`,
                   transition: 'transform 0.3s ease, border-color 0.3s ease',
-                  boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                  boxShadow: isDark ? '0 20px 40px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.05)',
                 }}
                 onMouseEnter={e => {
                   (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.05) translateY(-4px)';
-                  (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.25)';
+                  (e.currentTarget as HTMLDivElement).style.borderColor = accentColor;
                 }}
                 onMouseLeave={e => {
                   (e.currentTarget as HTMLDivElement).style.transform = 'scale(1) translateY(0)';
-                  (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.08)';
+                  (e.currentTarget as HTMLDivElement).style.borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
                 }}
               >
                 <div style={{ padding: 10 }}>
@@ -102,7 +115,7 @@ export default function CVCarousel() {
                     borderRadius: 16,
                     overflow: 'hidden',
                     aspectRatio: '210/297',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
                     position: 'relative',
                   }}>
                     <Image
@@ -115,8 +128,8 @@ export default function CVCarousel() {
                   </div>
                 </div>
                 <div style={{ padding: '8px 12px 12px', textAlign: 'center' }}>
-                  <p style={{ color: 'white', fontWeight: 900, fontSize: 13 }}>{cv.style}</p>
-                  <p style={{ color: '#475569', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginTop: 2 }}>
+                  <p style={{ color: isDark ? 'white' : '#0f172a', fontWeight: 900, fontSize: 13 }}>{cv.style}</p>
+                  <p style={{ color: accentColor, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginTop: 2 }}>
                     IA Optimisé
                   </p>
                 </div>

@@ -232,11 +232,8 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
 
           {/* Brand */}
-          <div className="flex items-center gap-3 shrink-0">
-            <Image src="/ouicvlogo.png" alt="CVBoost" width={32} height={32} className="rounded-lg" />
-            <span className="text-lg font-black text-white tracking-tight">
-              CV<span className="text-primary">Boost</span>
-            </span>
+          <div className="flex items-center shrink-0">
+            <Image src="/ouicvlogo.png" alt="OuiCV" width={150} height={50} className="object-contain" />
           </div>
 
           {/* Nav links */}
@@ -246,7 +243,6 @@ export default function Footer() {
             <Link href={`/${locale}/terms`} className="hover:text-white transition-colors">CGU</Link>
             <Link href={`/${locale}/legal-notice`} className="hover:text-white transition-colors">Mentions légales</Link>
             <Link href={`/${locale}/privacy`} className="hover:text-white transition-colors">RGPD</Link>
-            <Link href={`/${locale}/refund`} className="hover:text-white transition-colors">Remboursement</Link>
           </nav>
 
           {/* Contact */}
@@ -262,7 +258,7 @@ export default function Footer() {
         {/* Divider */}
         <div className="border-t border-slate-800/50 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-slate-600">
-            © {year} RushAI — CVBoost. Tous droits réservés.
+            © {year} RushAI — OuiCV. Tous droits réservés.
           </p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5 text-xs text-slate-600">

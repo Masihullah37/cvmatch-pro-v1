@@ -4,7 +4,8 @@ import { performCVAnalysis } from '@/app/actions/analysis';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Sparkles, Loader2, AlertCircle, X } from 'lucide-react';
+import { Sparkles, AlertCircle, X } from 'lucide-react';
+import OuiCVLoader from '@/components/common/OuiCVLoader';
 
 interface AnalyzeButtonProps {
   cvFile: File | null;
@@ -92,15 +93,15 @@ export default function AnalyzeButton({
         className={`group flex items-center justify-center gap-4 w-full max-w-[500px] py-6 rounded-[2.5rem] text-xl font-black shadow-2xl transition-all ${
           isAnalyzing 
             ? 'bg-slate-200 text-slate-400 cursor-not-allowed scale-[0.98]' 
-            : 'bg-primary text-white hover:bg-primary/90 hover:scale-[1.03] hover:shadow-primary/30 active:scale-95'
+            : 'bg-primary text-white hover:bg-emerald-600 hover:scale-[1.03] hover:shadow-emerald-500/30 active:scale-95 transition-all duration-200 shadow-emerald-500/20'
         }`}
       >
         {isAnalyzing ? (
-          <Loader2 size={24} className="animate-spin" />
+          <OuiCVLoader size="lg" />
         ) : (
           <Sparkles size={24} className="group-hover:animate-pulse" />
         )}
-        {isAnalyzing ? 'Intelligence Artificielle en action...' : 'Optimiser mon CV maintenant'}
+        {isAnalyzing ? '' : 'Optimiser mon CV maintenant'}
       </button>
       
       {isAnalyzing && (

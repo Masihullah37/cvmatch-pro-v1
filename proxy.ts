@@ -2,6 +2,9 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import createMiddleware from "next-intl/middleware";
 import { NextRequest, NextResponse } from "next/server";
 import { routing } from "./i18n/routing";
+import { db } from "./lib/db";
+import { users } from "./lib/db/schema";
+import { eq } from "drizzle-orm";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -11,6 +14,8 @@ const isProtectedRoute = createRouteMatcher([
   "/:locale/dashboard(.*)",
   "/:locale/templates(.*)",
 ]);
+
+const isAdminRoute = createRouteMatcher(["/:locale/admin(.*)"]);
 
 // Pages where we should NOT apply the cookie redirect
 const isAuthPage = (pathname: string) =>
@@ -45,6 +50,17 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   const { userId } = await auth();
 
   if (userId) {
+    // Check DB for admin/block status
+    const [dbUser] = await db.select().from(users).where(eq(users.clerkId, userId));
+    
+    if (dbUser?.isBlocked && !pathname.includes("/blocked")) {
+      return NextResponse.redirect(new URL("/[locale]/blocked", req.url).toString().replace("[locale]", pathname.split('/')[1] || 'fr'));
+    }
+
+    if (isAdminRoute(req) && !dbUser?.isAdmin) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
     // ✅ Manual login/signup with redirectTo param in URL
     const redirectTo = req.nextUrl.searchParams.get("redirectTo");
     if (redirectTo && isAuthPage(pathname)) {
@@ -69,7 +85,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // 4. PROTECT
-  if (isProtectedRoute(req)) {
+  if (isProtectedRoute(req) || isAdminRoute(req)) {
     await auth.protect();
   }
 

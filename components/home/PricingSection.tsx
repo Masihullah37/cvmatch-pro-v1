@@ -36,7 +36,7 @@ const plans = [
       "12 modèles de styles différents",
       "Éditeur de CV intégré",
       "Téléchargement PDF illimité",
-      "Valable 6 mois",
+      "Valable 45 jours",
     ],
     cta: "Obtenir le Pack",
     ctaStyle:
@@ -140,10 +140,7 @@ export default function PricingSection() {
           ))}
         </div>
 
-        <p className="text-center text-slate-400 text-sm mt-10">
-          Paiement sécurisé par Stripe · SSL 256-bit · Remboursement sous 14
-          jours
-        </p>
+
       </div>
     </section>
   );

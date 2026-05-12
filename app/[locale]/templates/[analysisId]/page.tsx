@@ -353,7 +353,15 @@ export default async function TemplatesPage({
           </Link>
           <div className="flex-1">
             <h1 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <Sparkles size={18} className="text-primary" />
+              <motion.div
+                animate={{ 
+                  scale: [1, 1.2, 1], 
+                  filter: ["brightness(1)", "brightness(1.3)", "brightness(1)"] 
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Sparkles size={20} className="text-primary" />
+              </motion.div>
               Vos Modèles Optimisés
             </h1>
             <p className="text-xs text-slate-400 font-medium mt-0.5 hidden sm:block">

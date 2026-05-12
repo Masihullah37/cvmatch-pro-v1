@@ -258,6 +258,8 @@ import UnlockButton from "@/components/results/UnlockButton";
 import { Link } from "@/i18n/routing";
 import { ArrowRight, Sparkles, Target, TrendingUp } from "lucide-react";
 import PaymentSync from "@/components/results/PaymentSync";
+import CVCarousel from "@/components/home/CVCarousel";
+import OuiCVLoader from "@/components/common/OuiCVLoader";
 
 export default async function ResultsPage({
   params,
@@ -293,10 +295,9 @@ export default async function ResultsPage({
   if (analysis.status === "processing") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center space-y-4 p-8">
-          <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto" />
-          <p className="text-slate-700 font-bold text-lg">Analyse en cours...</p>
-          <p className="text-slate-400 text-sm">Rafraîchissez dans quelques secondes.</p>
+        <div className="text-center space-y-8 p-8">
+          <OuiCVLoader size="lg" />
+          <p className="text-slate-400 text-sm mt-4">Rafraîchissez dans quelques secondes.</p>
         </div>
       </div>
     );
@@ -461,6 +462,11 @@ export default async function ResultsPage({
             )}
           </div>
         </div>
+      </div>
+      
+      {/* Templates Carousel */}
+      <div className="mt-20 border-t border-slate-200">
+        <CVCarousel theme="light" />
       </div>
     </div>
   );

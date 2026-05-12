@@ -106,14 +106,18 @@ export const dynamic = "force-dynamic";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { Inter } from 'next/font/google';
+import { Quicksand } from 'next/font/google';
 import { routing } from '@/i18n/routing';
 import '../globals.css';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
+import CookieConsent from '@/components/common/CookieConsent';
 
-const inter = Inter({ subsets: ['latin'] });
+const font = Quicksand({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'] });
+
+import PromotionModal from '@/components/common/PromotionModal';
+import { getSiteSettings } from '@/lib/actions/admin';
 
 export default async function LocaleLayout({
   children,
@@ -125,19 +129,16 @@ export default async function LocaleLayout({
   const { locale } = await params;
   if (!routing.locales.includes(locale as any)) notFound();
   const messages = await getMessages();
+  
+  const settings = await getSiteSettings();
+  const activeOffer = settings?.activeOffer?.isActive ? settings.activeOffer : null;
 
   return (
     <NextIntlClientProvider messages={messages} locale={locale}>
-      {/* 
-        KEY FIX: sidebar is position:fixed on desktop so it never 
-        steals layout space. Main content uses ml-64 (or ml-20 when collapsed)
-        via CSS variable set by SidebarClient.
-      */}
-      <div className="min-h-screen bg-slate-50">
+      <div className={`${font.className} min-h-screen bg-slate-50`}>
         <div className="no-print">
           <Sidebar />
         </div>
-        {/* This div shifts right to make room for the fixed sidebar */}
         <div
           id="main-content"
           className="sidebar-offset flex flex-col min-h-screen transition-all duration-300"
@@ -153,6 +154,8 @@ export default async function LocaleLayout({
           </div>
         </div>
       </div>
+      <CookieConsent />
+      <PromotionModal offer={activeOffer} />
     </NextIntlClientProvider>
   );
 }

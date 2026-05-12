@@ -149,6 +149,7 @@ export const CVRenderer = ({
       </section>
     ) : null;
 
+
   const ProjectsSection = ({
     headerClass,
     itemClass,
@@ -176,6 +177,56 @@ export const CVRenderer = ({
         </div>
       </section>
     ) : null;
+
+  const CustomSections = ({
+    headerClass,
+    itemClass,
+  }: {
+    headerClass: string;
+    itemClass: string;
+  }) => {
+    const standardKeys = [
+      "summary",
+      "experience",
+      "education",
+      "skills",
+      "languages",
+      "projects",
+      "contact",
+      "headers",
+      "photoUrl",
+      "userName",
+      "jobTitle",
+    ];
+    const customKeys = Object.keys(data).filter((k) => !standardKeys.includes(k));
+
+    return (
+      <>
+        {customKeys.map((key) => {
+          const items = data[key];
+          const header = headers[key] || key;
+          if (!items || (Array.isArray(items) && items.length === 0)) return null;
+
+          return (
+            <section key={key}>
+              <h3 className={headerClass}>{header}</h3>
+              {Array.isArray(items) ? (
+                <div className="space-y-1 mt-3">
+                  {items.map((it: any, i: number) => (
+                    <p key={i} className={itemClass}>
+                      {it}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className={`${itemClass} mt-3 whitespace-pre-line`}>{items}</p>
+              )}
+            </section>
+          );
+        })}
+      </>
+    );
+  };
 
   const ProtectionOverlay = () =>
     !isPaid && (
@@ -301,6 +352,10 @@ export const CVRenderer = ({
               headerClass="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2"
               itemClass="mb-4"
             />
+            <CustomSections
+              headerClass="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2"
+              itemClass="text-[11px] leading-relaxed text-slate-500"
+            />
             {education.length > 0 && (
               <section>
                 <h2 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2">
@@ -421,6 +476,10 @@ export const CVRenderer = ({
               headerClass="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400"
               itemClass="text-sm"
             />
+            <CustomSections
+              headerClass="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400"
+              itemClass="text-sm text-gray-600"
+            />
           </div>
         </div>
       )}
@@ -528,6 +587,10 @@ export const CVRenderer = ({
             <ProjectsSection
               headerClass="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6"
               itemClass="mb-6"
+            />
+            <CustomSections
+              headerClass="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6"
+              itemClass="text-[12px] text-gray-600"
             />
           </div>
         </div>
@@ -726,6 +789,10 @@ export const CVRenderer = ({
               headerClass="text-lg font-black text-emerald-900 border-b-2 border-emerald-100 pb-2 mb-6 uppercase"
               itemClass="mb-6"
             />
+            <CustomSections
+              headerClass="text-lg font-black text-emerald-900 border-b-2 border-emerald-100 pb-2 mb-6 uppercase"
+              itemClass="text-sm text-gray-600"
+            />
           </div>
         </div>
       )}
@@ -831,6 +898,10 @@ export const CVRenderer = ({
                 headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-8"
                 itemClass="mb-8"
               />
+              <CustomSections
+                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-8"
+                itemClass="text-sm text-slate-600"
+              />
             </div>
           </div>
         </div>
@@ -913,6 +984,10 @@ export const CVRenderer = ({
               <ProjectsSection
                 headerClass="text-xl font-black text-indigo-900 mb-6"
                 itemClass="relative pl-8 mb-8"
+              />
+              <CustomSections
+                headerClass="text-xl font-black text-indigo-900 mb-6"
+                itemClass="text-sm text-gray-600"
               />
             </div>
             <div className="col-span-4 space-y-10">
@@ -1008,6 +1083,10 @@ export const CVRenderer = ({
               <ProjectsSection
                 headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2"
                 itemClass="mb-6"
+              />
+              <CustomSections
+                headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2"
+                itemClass="text-xs text-slate-500"
               />
             </section>
             <div className="space-y-12">
@@ -1115,6 +1194,10 @@ export const CVRenderer = ({
               <ProjectsSection
                 headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mt-12 mb-8"
                 itemClass="mb-8"
+              />
+              <CustomSections
+                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mt-12 mb-8"
+                itemClass="text-sm text-gray-500"
               />
             </div>
             <div className="col-span-4 space-y-12">
@@ -1244,6 +1327,10 @@ export const CVRenderer = ({
               headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-8"
               itemClass="mb-8"
             />
+            <CustomSections
+              headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-8"
+              itemClass="text-sm text-slate-600"
+            />
             <LanguagesSection
               headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-4"
               itemClass="text-sm"
@@ -1336,6 +1423,10 @@ export const CVRenderer = ({
             <ProjectsSection
               headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6"
               itemClass="mb-6"
+            />
+            <CustomSections
+              headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6"
+              itemClass="text-sm text-gray-700"
             />
             {skills.length > 0 && (
               <section>
@@ -1445,6 +1536,10 @@ export const CVRenderer = ({
             <ProjectsSection
               headerClass="text-[14px] font-black uppercase tracking-widest text-slate-900 bg-slate-50 px-4 py-2 border-l-4 border-[#0065a2] mb-6"
               itemClass="px-4 mb-6"
+            />
+            <CustomSections
+              headerClass="text-[14px] font-black uppercase tracking-widest text-slate-900 bg-slate-50 px-4 py-2 border-l-4 border-[#0065a2] mb-6"
+              itemClass="px-4 text-[12px] text-slate-600"
             />
           </div>
         </div>

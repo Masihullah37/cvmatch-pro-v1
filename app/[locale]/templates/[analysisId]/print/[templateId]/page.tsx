@@ -12,7 +12,6 @@ export default async function PrintTemplatePage({
   const { templateId } = await params;
 
   // IMPORTANT: If templateId is still "[templateId]", 
-  // it means the page is being pre-rendered without data.
   if (!templateId || templateId.includes('[') || templateId.includes('%')) {
     return <div>Chargement...</div>;
   }

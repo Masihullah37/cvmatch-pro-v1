@@ -32,11 +32,11 @@ export default function TermsPage() {
         <ul className="list-disc pl-6 space-y-4">
           <li>
             <strong>Abonnement Mensuel :</strong> Donne droit à <strong>30 crédits par mois</strong>. 
-            Les crédits non utilisés au cours d'un mois donné <span className="font-bold text-red-600">ne sont pas reportables</span> sur le mois suivant.
+            Les crédits sont valables pour une durée de <strong>30 jours</strong> et <span className="font-bold text-red-600">ne sont pas reportables</span> sur le mois suivant.
           </li>
           <li>
-            <strong>Pack One-Time (Achat Unique) :</strong> Donne droit à <strong>5 crédits</strong>. 
-            Ces crédits sont valables pour une durée de <strong>3 mois (90 jours)</strong> à compter de la date d'achat. 
+            <strong>Pack Starter (Achat Unique) :</strong> Donne droit à <strong>5 crédits</strong>. 
+            Ces crédits sont valables pour une durée de <strong>45 jours</strong> à compter de la date d'achat. 
             Passé ce délai, les crédits non utilisés expireront automatiquement.
           </li>
         </ul>
@@ -51,7 +51,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-6 mb-12">
-        <h2 className="text-2xl font-black text-slate-900 border-l-4 border-primary pl-4 uppercase tracking-tighter">5. Droit de Rétractation et Remboursement</h2>
+        <h2 className="text-2xl font-black text-slate-900 border-l-4 border-primary pl-4 uppercase tracking-tighter">5. Droit de Rétractation</h2>
         <p>
           Conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne peut être exercé pour les contrats 
           de fourniture de contenu numérique non fourni sur un support matériel dont l'exécution a commencé après accord préalable 

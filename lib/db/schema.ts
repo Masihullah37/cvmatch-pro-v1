@@ -19,6 +19,8 @@ export const users = pgTable('users', {
   subscriptionStatus: subscriptionStatusEnum('subscription_status'),
   subscriptionEndsAt: timestamp('subscription_ends_at'),
   cvTemplatesUsedThisMonth: integer('cv_templates_used_this_month').default(0),
+  isAdmin: boolean('is_admin').default(false),
+  isBlocked: boolean('is_blocked').default(false),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -89,4 +91,9 @@ export const cvGenerations = pgTable('cv_generations', {
   templateData: jsonb('template_data'),
   pdfUrl: varchar('pdf_url'),
   createdAt: timestamp('created_at').defaultNow(),
+});
+export const siteSettings = pgTable('site_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  activeOffer: jsonb('active_offer'), // { discount: 20, description: 'Offre Spéciale', expiresAt: '...' }
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
