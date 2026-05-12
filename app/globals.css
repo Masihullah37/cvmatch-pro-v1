@@ -32,13 +32,13 @@
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 221 100% 50%; /* Electric Blue */
+  --primary: 221 100% 50%;
   --primary-foreground: 210 40% 98%;
   --secondary: 210 40% 96%;
   --secondary-foreground: 222 47% 11%;
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 47%;
-  --accent: 32 100% 50%; /* Orange Optimization */
+  --accent: 32 100% 50%;
   --accent-foreground: 210 40% 98%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
@@ -46,72 +46,96 @@
   --input: 214 32% 91%;
   --ring: 221 100% 50%;
   --radius: 1.5rem;
+  /* Sidebar offset — updated by SidebarClient JS */
+  --sidebar-width: 256px;
 }
 
 @layer base {
-  * {
-    @apply border-slate-200;
-  }
+  * { @apply border-slate-200; }
   body {
     @apply bg-background text-foreground font-sans antialiased overflow-x-hidden;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(221, 100%, 50%, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(32, 100%, 50%, 0.05) 0px, transparent 50%);
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+    @apply bg-white/80 backdrop-blur-md border border-white/30 shadow-xl;
   }
-  
   .btn-primary {
-    @apply bg-primary text-white px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/20 active:scale-95;
-  }
-  
-  .btn-orange {
-    @apply bg-accent text-white px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 hover:shadow-lg hover:shadow-accent/20 active:scale-95;
+    @apply bg-primary text-white px-6 py-3 rounded-2xl font-bold transition-all
+      hover:scale-105 hover:shadow-lg hover:shadow-primary/20 active:scale-95;
   }
 }
 
-/* Floating Bubbles Animation */
-@keyframes float {
-  0% { transform: translateY(0px) translateX(0px); opacity: 0; }
-  50% { opacity: 0.5; }
+/* ── Sidebar offset for main content ─────────────────────── */
+.sidebar-offset {
+  margin-left: 0;
+}
+@media (min-width: 768px) {
+  .sidebar-offset {
+    margin-left: var(--sidebar-width, 256px);
+  }
+}
+
+/* ── Hero float animation ─────────────────────────────────── */
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+.hero-float       { animation: heroFloat 3s ease-in-out infinite; }
+.hero-float-delay { animation: heroFloat 3.5s ease-in-out infinite 0.8s; }
+
+/* ── CV Carousel ──────────────────────────────────────────── */
+@keyframes carousel-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.carousel-track {
+  animation: carousel-scroll 28s linear infinite;
+  width: max-content;
+  display: flex;
+  gap: 1.5rem;
+}
+.carousel-track:hover { animation-play-state: paused; }
+
+/* ── How it works step line ───────────────────────────────── */
+@keyframes stepPulse {
+  0%, 100% { opacity: 0.4; transform: scaleX(1); }
+  50%       { opacity: 1;   transform: scaleX(1.02); }
+}
+.step-line { animation: stepPulse 2s ease-in-out infinite; }
+
+/* ── Bubble background ────────────────────────────────────── */
+@keyframes float-bubble {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  50%  { opacity: 0.4; }
   100% { transform: translateY(-100vh) translateX(50px); opacity: 0; }
 }
-
 .bubble {
   position: fixed;
-  width: 20px;
-  height: 20px;
-  background: var(--primary);
+  width: 20px; height: 20px;
+  background: hsl(var(--primary));
   border-radius: 50%;
   filter: blur(40px);
   z-index: -1;
   pointer-events: none;
-  animation: float 20s infinite linear;
+  animation: float-bubble 20s infinite linear;
 }
-
-/* Soft Glow */
 .aura-glow {
   position: fixed;
-  top: 50%;
-  left: 50%;
+  top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 800px;
-  height: 800px;
-  background: radial-gradient(circle, hsla(221, 100%, 50%, 0.08) 0%, transparent 70%);
-  z-index: -2;
-  pointer-events: none;
+  width: 800px; height: 800px;
+  background: radial-gradient(circle, hsla(221,100%,50%,0.07) 0%, transparent 70%);
+  z-index: -2; pointer-events: none;
 }
 
-/* Page Transitions */
-.fade-in {
-  animation: fadeIn 0.6s ease-out forwards;
-}
-
+/* ── Page fade-in ─────────────────────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.fade-in { animation: fadeIn 0.5s ease-out forwards; }
+
+/* ── No print ─────────────────────────────────────────────── */
+@media print { .no-print { display: none !important; } }
