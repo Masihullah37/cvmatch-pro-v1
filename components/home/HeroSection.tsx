@@ -45,8 +45,7 @@ export default function HeroSection() {
         display: "flex",
         alignItems: "center",
         overflow: "hidden",
-        background:
-          "linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%)",
+        background: "white",
       }}
     >
       {/* Grid background */}
@@ -54,9 +53,9 @@ export default function HeroSection() {
         style={{
           position: "absolute",
           inset: 0,
-          opacity: 0.15,
+          opacity: 0.1,
           backgroundImage:
-            "linear-gradient(rgba(99,102,241,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.4) 1px, transparent 1px)",
+            "linear-gradient(rgba(16,185,129,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.2) 1px, transparent 1px)",
           backgroundSize: "60px 60px",
         }}
       />
@@ -69,7 +68,7 @@ export default function HeroSection() {
           left: "20%",
           width: 400,
           height: 400,
-          background: "rgba(99,102,241,0.15)",
+          background: "rgba(16,185,129,0.05)",
           borderRadius: "50%",
           filter: "blur(100px)",
           pointerEvents: "none",
@@ -82,7 +81,7 @@ export default function HeroSection() {
           right: "20%",
           width: 320,
           height: 320,
-          background: "rgba(52,211,153,0.1)",
+          background: "rgba(52,211,153,0.05)",
           borderRadius: "50%",
           filter: "blur(80px)",
           pointerEvents: "none",
@@ -95,7 +94,7 @@ export default function HeroSection() {
           right: "30%",
           width: 250,
           height: 250,
-          background: "rgba(251,146,60,0.08)",
+          background: "rgba(251,146,60,0.04)",
           borderRadius: "50%",
           filter: "blur(60px)",
           pointerEvents: "none",
@@ -114,16 +113,17 @@ export default function HeroSection() {
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           {/* Left — Text */}
-          <div className="space-y-8">
+          <div className="space-y-8 text-center lg:text-left">
 
 
             {/* Headline */}
             <div>
               <h1
-                className="font-black text-white leading-tight tracking-tighter"
+                className="font-black leading-tight tracking-tighter"
                 style={{
                   fontSize: "clamp(2.5rem, 5vw, 4.5rem)",
                   lineHeight: 1.05,
+                  color: "#10b981"
                 }}
               >
                 Élevez la précision de vos
@@ -151,8 +151,8 @@ export default function HeroSection() {
 
             {/* Subtext */}
             <p
-              className="text-lg leading-relaxed max-w-lg font-medium"
-              style={{ color: "#94a3b8" }}
+              className="text-lg leading-relaxed max-w-lg font-medium mx-auto lg:mx-0"
+              style={{ color: "#475569" }}
             >
               Analysez votre CV par rapport à n'importe quelle offre d'emploi.
               Obtenez un score ATS, des suggestions précises et générez 12
@@ -160,7 +160,7 @@ export default function HeroSection() {
             </p>
 
             {/* Trust points */}
-            <div className="flex flex-wrap gap-6">
+            <div className="flex flex-wrap gap-6 justify-center lg:justify-start">
               {[
                 "Score ATS instantané",
                 "Mots-clés manquants",
@@ -168,12 +168,12 @@ export default function HeroSection() {
               ].map((point) => (
                 <div
                   key={point}
-                  className="flex items-center gap-2 text-sm font-medium"
-                  style={{ color: "#cbd5e1" }}
+                  className="flex items-center gap-2 text-sm font-bold"
+                  style={{ color: "#64748b" }}
                 >
                   <CheckCircle2
                     size={16}
-                    style={{ color: "#34d399", flexShrink: 0 }}
+                    style={{ color: "#10b981", flexShrink: 0 }}
                   />
                   {point}
                 </div>
@@ -181,7 +181,7 @@ export default function HeroSection() {
             </div>
 
             {/* CTAs */}
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 justify-center lg:justify-start">
               <a
                 href="#analyze"
                 className="group inline-flex items-center gap-3 font-black text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-emerald-600"
@@ -199,11 +199,11 @@ export default function HeroSection() {
               </a>
               <a
                 href="#pricing"
-                className="inline-flex items-center gap-3 font-bold text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-white/10 hover:border-emerald-500/50"
+                className="inline-flex items-center gap-3 font-bold text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-slate-100"
                 style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  color: "white",
+                  background: "#f8fafc",
+                  border: "2px solid #e2e8f0",
+                  color: "#0f172a",
                   padding: "16px 32px",
                   borderRadius: 16,
                   textDecoration: "none",
@@ -213,10 +213,10 @@ export default function HeroSection() {
               </a>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-2 justify-center lg:justify-start">
                <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center gap-2">
                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Disponible 24/7</span>
+                 <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Disponible 24/7</span>
                </div>
                <p className="text-sm text-slate-500 font-medium italic">
                  "Optimisez votre avenir dès aujourd'hui"
@@ -225,7 +225,7 @@ export default function HeroSection() {
           </div>
 
           {/* Right — Character image & Animation */}
-          <div className="relative hidden lg:flex items-center justify-center">
+          <div className="relative flex items-center justify-center scale-[0.6] sm:scale-[0.8] lg:scale-100 mt-12 lg:mt-0">
             {/* Steps circular animation */}
             <div className="absolute inset-0 z-20 pointer-events-none">
               {STEPS.map((step, i) => {
@@ -250,14 +250,14 @@ export default function HeroSection() {
                       <div 
                         className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-500"
                         style={{
-                          background: isActive ? step.color : 'rgba(255,255,255,0.05)',
-                          border: `1px solid ${isActive ? 'white' : 'rgba(255,255,255,0.1)'}`,
+                          background: isActive ? step.color : 'rgba(148,163,184,0.1)',
+                          border: `2px solid ${isActive ? 'white' : 'rgba(226,232,240,0.8)'}`,
                           boxShadow: isActive ? `0 0 40px ${step.color}60` : 'none',
                         }}
                       >
-                        <Icon size={24} color={isActive ? 'white' : '#94a3b8'} />
+                        <Icon size={24} color={isActive ? 'white' : '#64748b'} />
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap px-2 py-1 rounded-lg ${isActive ? 'bg-white text-slate-900' : 'text-slate-500'}`}>
+                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap px-3 py-1.5 rounded-xl border ${isActive ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'text-slate-500 bg-slate-50 border-slate-200'}`}>
                         {step.title}
                       </span>
                     </div>
@@ -266,7 +266,7 @@ export default function HeroSection() {
               })}
               
               {/* Rotating orbit ring */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] border border-white/5 rounded-full animate-[spin_20s_linear_infinite]" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] border border-slate-200 rounded-full animate-[spin_20s_linear_infinite]" />
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-dashed border-primary/10 rounded-full animate-[spin_30s_linear_infinite_reverse]" />
             </div>
 
@@ -278,7 +278,7 @@ export default function HeroSection() {
                   position: "absolute",
                   inset: 0,
                   background:
-                    "radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)",
+                    "radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)",
                   borderRadius: "50%",
                   filter: "blur(40px)",
                   animation: "pulse 4s ease-in-out infinite",
@@ -292,7 +292,7 @@ export default function HeroSection() {
                 className="object-contain"
                 style={{
                   zIndex: 10,
-                  filter: "drop-shadow(0 40px 80px rgba(0,0,0,0.5))",
+                  filter: "drop-shadow(0 40px 80px rgba(0,0,0,0.2))",
                 }}
                 priority
               />

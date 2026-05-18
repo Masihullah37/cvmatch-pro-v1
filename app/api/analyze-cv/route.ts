@@ -6,7 +6,7 @@ import {
   paidUserRateLimit,
   dailyRateLimit,
 } from "@/lib/rate-limit/upstash";
-import { analyzeCV, generateOptimizedCV } from "@/lib/ai/ats-analyzer";
+import { analyzeCV, extractRawCVData } from "@/lib/ai/ats-analyzer";
 import { parseCVFile } from "@/lib/ai/cv-parser";
 import { extractStructuredJobDetails } from "@/lib/utils/scraper";
 import { z } from "zod";
@@ -168,12 +168,7 @@ export async function POST(req: Request) {
       jobDescription,
       structuredJobDetails,
     );
-    const optimizedData = await generateOptimizedCV(
-      cvText,
-      jobDescription,
-      analysisResult,
-      structuredJobDetails,
-    );
+    const rawData = await extractRawCVData(cvText);
 
     //     // Mock data to test the DB insert
     // const analysisResult = { atsScore: 85, scoreBreakdown: {}, flaws: [], suggestions: [], keywordsMissing: [], keywordsFound: [] };
@@ -186,18 +181,21 @@ export async function POST(req: Request) {
         userId: dbUser?.id,
         originalCvUrl: cvUrl,
         jobUrl,
-        jobDescription,
-        atsScore: analysisResult.atsScore,
+        jobDescription: jobDescription,
+        atsScore: Math.round(Number(analysisResult.atsScore) || 0),
         scoreBreakdown: analysisResult.scoreBreakdown,
         flaws: analysisResult.flaws,
         suggestions: analysisResult.suggestions,
         keywordsMissing: analysisResult.keywordsMissing,
         keywordsFound: analysisResult.keywordsFound,
-        optimizedData: optimizedData,
+        optimizedData: {
+          ...rawData,
+          _originalCvText: cvText,
+        },
         guestSessionId: guestSessionId,
         status: "completed",
-        userName: optimizedData.userName,
-        jobTitle: optimizedData.jobTitle,
+        userName: rawData?.userName || "Candidat",
+        jobTitle: rawData?.jobTitle || "Poste Visé",
       })
       .returning({ id: cvAnalyses.id });
 

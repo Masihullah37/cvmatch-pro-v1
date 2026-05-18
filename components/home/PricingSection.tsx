@@ -1,8 +1,13 @@
 "use client";
 
-import { CheckCircle2, Zap, Sparkles } from "lucide-react";
+import { CheckCircle2, Zap, Sparkles, Loader2 } from "lucide-react";
 import { useLocale } from "next-intl";
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
+import { useState, useEffect } from "react";
+import { createCheckoutSession } from "@/app/actions/stripe";
+import { useRouter } from "next/navigation";
+import ActivePlanModal from "./ActivePlanModal";
 
 const plans = [
   {
@@ -22,6 +27,7 @@ const plans = [
     cta: "Commencer gratuitement",
     ctaStyle: "bg-slate-900 text-white hover:bg-slate-800",
     href: "/#analyze",
+    type: "free",
   },
   {
     name: "Pack Starter",
@@ -41,7 +47,8 @@ const plans = [
     cta: "Obtenir le Pack",
     ctaStyle:
       "bg-primary text-white hover:bg-primary/90 shadow-xl shadow-primary/30",
-    href: "/#analyze",
+    href: "/#pricing",
+    type: "one-time",
   },
   {
     name: "Pro Mensuel",
@@ -59,12 +66,78 @@ const plans = [
     ],
     cta: "Démarrer l'abonnement",
     ctaStyle: "bg-slate-900 text-white hover:bg-slate-800",
-    href: "/#analyze",
+    href: "/#pricing",
+    type: "subscription",
   },
 ];
 
 export default function PricingSection() {
   const locale = useLocale();
+  const { userId } = useAuth();
+  const router = useRouter();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [userStatus, setUserStatus] = useState<{ credits: number; expiry: string | null; plan: string; status: string | null } | null>(null);
+  const [showActiveModal, setShowActiveModal] = useState(false);
+
+  useEffect(() => {
+    if (userId) {
+      fetch("/api/user/credits")
+        .then((res) => res.json())
+        .then((data) => setUserStatus(data))
+        .catch(() => {});
+    }
+  }, [userId]);
+
+  const handlePlanClick = async (plan: any) => {
+    if (plan.type === "free") {
+      router.push(`/${locale}#analyze`);
+      return;
+    }
+
+    if (!userId) {
+      // If not logged in, go to sign-in and then back to pricing or checkout
+      const currentUrl = window.location.pathname + window.location.search;
+      const separator = currentUrl.includes('?') ? '&' : '?';
+      const redirectWithTrigger = `${currentUrl}${separator}trigger=${plan.type}`;
+      router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(redirectWithTrigger)}`);
+      return;
+    }
+
+    // Check if user has active credits or unexpired plan
+    if (userStatus && userStatus.credits > 0) {
+      const expiryDate = userStatus.expiry ? new Date(userStatus.expiry) : null;
+      if (!expiryDate || expiryDate > new Date()) {
+        setShowActiveModal(true);
+        return;
+      }
+    }
+
+    try {
+      setLoading(plan.type);
+      const url = await createCheckoutSession(plan.type as any, undefined, locale);
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout session", error);
+      if (error.message.includes("déjà un plan actif")) {
+        setShowActiveModal(true);
+      } else {
+        alert("Une erreur est survenue lors de la redirection vers le paiement.");
+      }
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Handle automatic plan selection if redirecting from login
+  useEffect(() => {
+    const triggerPlan = new URLSearchParams(window.location.search).get("trigger");
+    if (triggerPlan && !loading) {
+      const plan = plans.find(p => p.type === triggerPlan);
+      if (plan) handlePlanClick(plan);
+    }
+  }, [userId]);
 
   return (
     <section id="pricing" className="py-24 px-6 bg-slate-50">
@@ -130,18 +203,27 @@ export default function PricingSection() {
                 ))}
               </ul>
 
-              <a
-                href={plan.href}
-                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-center transition-all duration-200 hover:scale-[1.02] ${plan.ctaStyle}`}
+              <button
+                onClick={() => handlePlanClick(plan)}
+                disabled={loading !== null}
+                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-center transition-all duration-200 hover:scale-[1.02] flex items-center justify-center gap-2 ${plan.ctaStyle}`}
               >
+                {loading === plan.type && <Loader2 className="animate-spin" size={18} />}
                 {plan.cta}
-              </a>
+              </button>
             </div>
           ))}
         </div>
 
 
       </div>
+      
+      <ActivePlanModal 
+        isOpen={showActiveModal} 
+        onClose={() => setShowActiveModal(false)} 
+        credits={userStatus?.credits || 0}
+        expiryDate={userStatus?.expiry || null}
+      />
     </section>
   );
 }

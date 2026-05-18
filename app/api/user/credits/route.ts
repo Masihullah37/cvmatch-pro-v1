@@ -17,5 +17,8 @@ export async function GET() {
 
   return NextResponse.json({
     credits: dbUser?.credits || 0,
+    expiry: dbUser?.creditsExpiry || null,
+    plan: dbUser?.plan || "free",
+    status: dbUser?.subscriptionStatus || null,
   });
 }

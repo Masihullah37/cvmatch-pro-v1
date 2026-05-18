@@ -5,30 +5,60 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { getEffectiveCredits } from "@/lib/utils/subscription";
 
 export async function createCheckoutSession(
   type: "one-time" | "subscription",
-  analysisId: string,
-  locale: string,
+  analysisId?: string,
+  locale: string = "fr",
+  templateNumber?: number
 ) {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
+  const userEmail = (sessionClaims as any)?.email;
+
+  // Server-side check: Block if user already has active credits
+  if (userId) {
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    });
+
+    if (dbUser && getEffectiveCredits(dbUser) > 0) {
+      throw new Error("Vous avez déjà un plan actif avec des crédits disponibles.");
+    }
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
+  
+  let successPath = "";
+  if (analysisId) {
+    successPath = templateNumber 
+      ? `/${locale}/templates/${analysisId}?template=${templateNumber}&payment=success`
+      : `/${locale}/templates/${analysisId}?payment=success`;
+  } else {
+    // Direct purchase from homepage
+    successPath = `/${locale}/dashboard?payment=success`;
+  }
+
+  const cancelUrl = analysisId 
+    ? `${appUrl}/${locale}/results/${analysisId}?canceled=true`
+    : `${appUrl}/${locale}#pricing`;
 
   let session;
 
   if (type === "one-time") {
     session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      customer_email: userEmail,
       line_items: [
         {
           price_data: {
             currency: "eur",
             product_data: {
               name: "Pack 5 CV Optimisés (Paiement Unique)",
-              description:
-                "Débloquez vos 12 modèles de CV parfaitement adaptés pour l'offre d'emploi.",
+              description: analysisId
+                ? "Débloquez vos 12 modèles de CV parfaitement adaptés pour l'offre d'emploi."
+                : "Achetez 5 crédits pour générer des CV optimisés par l'IA.",
             },
             unit_amount: 290, // 2.90 EUR
           },
@@ -36,17 +66,24 @@ export async function createCheckoutSession(
         },
       ],
       mode: "payment",
-      success_url: `${appUrl}/${locale}/results/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/${locale}/results/${analysisId}?canceled=true`,
+      allow_promotion_codes: true,
+      success_url: `${appUrl}${successPath}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      custom_text: {
+        submit: {
+          message: "Débloquez votre plein potentiel avec OuiCV Pro.",
+        },
+      },
       metadata: {
         userId: userId || "guest",
-        analysisId,
+        analysisId: analysisId || "direct",
         type: "one-time",
       },
     });
   } else {
     session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      customer_email: userEmail,
       line_items: [
         {
           price: process.env.STRIPE_SUBSCRIPTION_PRICE_ID,
@@ -54,11 +91,17 @@ export async function createCheckoutSession(
         },
       ],
       mode: "subscription",
-      success_url: `${appUrl}/${locale}/results/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/${locale}/results/${analysisId}?canceled=true`,
+      allow_promotion_codes: true,
+      success_url: `${appUrl}${successPath}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      custom_text: {
+        submit: {
+          message: "Abonnez-vous pour un accès illimité aux fonctionnalités Pro.",
+        },
+      },
       metadata: {
         userId: userId || "guest",
-        analysisId,
+        analysisId: analysisId || "direct",
         type: "subscription",
       },
     });

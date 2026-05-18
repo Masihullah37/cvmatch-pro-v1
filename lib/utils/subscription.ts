@@ -20,3 +20,11 @@ export function getEffectiveCredits(user: CreditAwareUser): number {
   }
   return Math.max(0, user.credits || 0);
 }
+
+export function isUserExpired(user: CreditAwareUser): boolean {
+  return isCreditsExpired(user);
+}
+
+export function isActivePaidUser(user: CreditAwareUser): boolean {
+  return getEffectiveCredits(user) > 0 && !isCreditsExpired(user);
+}

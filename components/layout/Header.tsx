@@ -10,7 +10,7 @@ import { useAuth } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { Menu, X, ChevronLeft as BackIcon, ChevronRight as ForwardIcon } from 'lucide-react';
+import { Menu, X, ChevronLeft as BackIcon, ChevronRight as ForwardIcon, Plus } from 'lucide-react';
 
 export default function Header() {
   const { userId } = useAuth();
@@ -54,6 +54,7 @@ export default function Header() {
                 width={120}
                 height={40}
                 className="relative object-contain group-hover:scale-105 transition-transform"
+                style={{ height: "auto" }}
               />
             </div>
           </Link>
@@ -63,6 +64,9 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
+          <Link href="/#analyze" className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+            <Plus size={14} /> Nouvelle Analyse
+          </Link>
           <Link href="/#pricing" className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
             Tarifs
           </Link>
@@ -97,6 +101,9 @@ export default function Header() {
       {/* Mobile Menu */}
       {mobileOpen && (
         <div className="md:hidden bg-white border-t border-slate-100 px-6 py-6 space-y-4 shadow-xl">
+          <Link href="/#analyze" className="flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all" onClick={() => setMobileOpen(false)}>
+            <Plus size={14} /> Nouvelle Analyse
+          </Link>
           <Link href="/#pricing" className="block text-sm font-bold text-emerald-600 py-2" onClick={() => setMobileOpen(false)}>
             Tarifs
           </Link>

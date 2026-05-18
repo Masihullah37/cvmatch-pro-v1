@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { unlockOptimizedCV } from "@/app/actions/analysis";
+import { generateAIResume, deductCreditForAnalysis } from "@/app/actions/analysis";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import PaywallModal from "@/components/templates/PaywallModal";
@@ -22,10 +22,12 @@ export default function UnlockButton({
   const router = useRouter();
   const locale = useLocale();
 
+  // Capture current path to ensure redirect after payment returns here
+  const currentPath = typeof window !== "undefined" ? window.location.pathname + window.location.search : "";
+
   const handleUnlock = async () => {
-    // 1. Guest → redirect to sign-in with correct return URL
     if (isGuest) {
-      const redirectTo = encodeURIComponent(`/${locale}/results/${analysisId}`);
+      const redirectTo = encodeURIComponent(currentPath || `/${locale}/results/${analysisId}`);
       router.push(`/${locale}/sign-in?redirectTo=${redirectTo}`);
       return;
     }
@@ -36,18 +38,23 @@ export default function UnlockButton({
       return;
     }
 
-    // 3. Logged-in + credits → unlock
     setLoading(true);
     try {
-      const result = await unlockOptimizedCV(analysisId);
+      // RULE: If they just want to "Unlock" (Deduct credit for the first time without AI gen)
+      // we call deductCreditForAnalysis. If this button is specifically for AI generation:
+      const result = await generateAIResume(analysisId);
+
       if (result.success) {
         toast.success("CV Optimisés générés avec succès !");
-        router.push(`/${locale}/templates/${analysisId}`);
+        // If they are already on the templates page, just refresh, otherwise redirect
+        if (window.location.pathname.includes('/templates/')) {
+          router.refresh();
+        } else {
+          router.push(`/${locale}/templates/${analysisId}`);
+        }
       }
     } catch (e) {
-      const message =
-        e instanceof Error ? e.message : "Une erreur est survenue";
-      toast.error(message);
+      toast.error(e instanceof Error ? e.message : "Une erreur est survenue");
     } finally {
       setLoading(false);
     }
@@ -77,6 +84,7 @@ export default function UnlockButton({
         isOpen={showPaywall}
         onClose={() => setShowPaywall(false)}
         analysisId={analysisId}
+        returnUrl={currentPath} // Pass the current URL to the paywall for Stripe success_url
       />
     </>
   );

@@ -44,12 +44,12 @@ export default function CustomSignInPage() {
           </p>
         </div>
 
-        <div className="bg-white/70 backdrop-blur-xl border border-white shadow-2xl rounded-[2.5rem] p-2 overflow-hidden min-h-[400px] flex items-center justify-center">
+        <div className="bg-white/70 backdrop-blur-xl border border-white shadow-2xl rounded-[2.5rem] p-2 overflow-hidden min-h-[400px] flex flex-col items-center justify-center relative">
           <ClerkLoading>
-            <div className="flex flex-col items-center gap-3 py-20">
-              <Loader2 className="h-10 w-10 animate-spin text-primary/50" />
-              <p className="text-sm font-bold text-slate-400">
-                Sécurisation de la connexion...
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/50 z-20">
+              <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                Chargement...
               </p>
             </div>
           </ClerkLoading>

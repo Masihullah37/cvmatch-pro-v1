@@ -1,19 +1,24 @@
 'use server';
 
 import { db } from "@/lib/db";
-import { cvAnalyses, cvTemplates } from "@/lib/db/schema";
+import { cvAnalyses, cvTemplates, users } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
-import { analyzeCV, generateOptimizedCV } from "@/lib/ai/ats-analyzer";
+import { analyzeCV, extractRawCVData, generateOptimizedCV } from "@/lib/ai/ats-analyzer";
 import { parseCVFile } from "@/lib/ai/cv-parser";
 import { extractStructuredJobDetails, isUrl, scrapeJobDescription } from "@/lib/utils/scraper";
 
 import { auth } from "@clerk/nextjs/server";
-import { eq, sql } from "drizzle-orm";
-import { users } from "@/lib/db/schema";
-import { getEffectiveCredits } from "@/lib/utils/subscription";
+import { eq, sql, and } from "drizzle-orm";
+import { getEffectiveCredits, isCreditsExpired } from "@/lib/utils/subscription";
+
+/**
+ * RULE: Prevent AI Token Waste
+ * performCVAnalysis only extracts raw data and ATS score.
+ * AI Resume Generation is a separate paid action.
+ */
 
 export async function performCVAnalysis(formData: FormData) {
-  
+
   const { userId } = await auth();
   let dbUserId: string | null = null;
 
@@ -93,19 +98,13 @@ export async function performCVAnalysis(formData: FormData) {
     jobTitle = structuredJobDetails.title;
   }
 
-  // 2. Analyze ATS
+  // 1. Analyze ATS
   const analysisResult = await analyzeCV(cvText, jobDescription, structuredJobDetails);
 
-  // 3. Generate Optimized Content
-  // This will transform either the CV text OR the profile description into a professional CV format
-  const optimizedContent = await generateOptimizedCV(
-    cvText,
-    jobDescription,
-    analysisResult,
-    structuredJobDetails
-  );
+  // 2. Extract Raw CV Data (Rule: Never generate AI content for unpaid users)
+  const rawData = await extractRawCVData(cvText);
 
-  // 4. Create Analysis Record
+  // 3. Create Analysis Record
   let newAnalysis: typeof cvAnalyses.$inferSelect;
   try {
     const result = await db.insert(cvAnalyses).values({
@@ -117,10 +116,13 @@ export async function performCVAnalysis(formData: FormData) {
       suggestions: analysisResult.suggestions,
       keywordsFound: analysisResult.keywordsFound,
       keywordsMissing: analysisResult.keywordsMissing,
-      userName: optimizedContent?.userName || "Candidat",
-      jobTitle: jobTitle || optimizedContent?.jobTitle || "Poste Visé",
+      userName: rawData?.userName || "Candidat",
+      jobTitle: jobTitle || "Poste Visé",
       jobDescription: jobDescription,
-      optimizedData: optimizedContent, // Save as master JSON
+      optimizedData: {
+        ...rawData,
+        _originalCvText: cvText, // Store raw text inside JSON to avoid schema changes
+      },
     }).returning();
     newAnalysis = result[0];
   } catch (dbError: any) {
@@ -132,56 +134,160 @@ export async function performCVAnalysis(formData: FormData) {
   return newAnalysis.id;
 }
 
-export async function unlockOptimizedCV(analysisId: string) {
+/**
+ * RULE: Credit Deduction Logic (Trigger 1)
+ * Deducts 1 credit to generate an AI-optimized resume.
+ * Incorporates missing points and suggestions into existing content.
+ */
+export async function generateAIResume(analysisId: string, currentCVData?: any) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
   const dbUser = await db.query.users.findFirst({
-    where: eq(users.clerkId, userId)
+    where: eq(users.clerkId, userId),
   });
 
-  if (!dbUser || getEffectiveCredits(dbUser) < 1) {
-    throw new Error("Crédits insuffisants.");
+  if (!dbUser) {
+    throw new Error("Utilisateur introuvable.");
   }
+
+  if (isCreditsExpired(dbUser)) throw new Error("EXPIRED: Votre plan a expiré.");
+  if (getEffectiveCredits(dbUser) < 1) throw new Error("Crédits insuffisants.");
+
+  const analysis = await db.query.cvAnalyses.findFirst({
+    where: eq(cvAnalyses.id, analysisId),
+  });
+
+  if (!analysis) throw new Error("Analyse introuvable.");
+
+  // 1. Deduct 1 Credit for AI Generation
+  await db.update(users)
+    .set({ credits: sql`${users.credits} - 1` })
+    .where(eq(users.id, dbUser.id));
+
+  // 2. Perform AI Optimization (Include missing points/suggestions to increase score)
+  const cvSource = currentCVData ? JSON.stringify(currentCVData) : (analysis.optimizedData as any)?._originalCvText || "";
+  const structuredJobDetails = extractStructuredJobDetails(analysis.jobDescription || "");
+
+  const aiResult = await generateOptimizedCV(
+    cvSource,
+    analysis.jobDescription || "",
+    {
+      atsScore: analysis.atsScore,
+      scoreBreakdown: analysis.scoreBreakdown,
+      flaws: analysis.flaws,
+      suggestions: analysis.suggestions,
+      keywordsMissing: analysis.keywordsMissing,
+      keywordsFound: analysis.keywordsFound,
+    } as any,
+    structuredJobDetails
+  );
+
+  // RULE: Prevent AI from adding extra sections not present in user editor
+  // If currentCVData is provided, we filter the AI result to match the user's existing sections
+  let finalData = aiResult;
+  if (currentCVData && typeof aiResult === 'object' && aiResult !== null) {
+    const filteredResult: any = {};
+    // Only keep keys that existed in the original user data
+    Object.keys(currentCVData).forEach(key => {
+      // Use AI content if available, otherwise fallback to original
+      filteredResult[key] = aiResult[key] !== undefined ? aiResult[key] : currentCVData[key];
+    });
+    finalData = filteredResult;
+  }
+
+  // 4. Update Analysis and all associated templates
+  await db.update(cvAnalyses)
+    .set({ optimizedData: finalData })
+    .where(eq(cvAnalyses.id, analysisId));
+
+  const existingTemplates = await db.query.cvTemplates.findMany({
+    where: eq(cvTemplates.analysisId, analysisId)
+  });
+
+  if (existingTemplates.length > 0) {
+    await db.update(cvTemplates)
+      .set({ templateData: finalData, isPaid: true })
+      .where(eq(cvTemplates.analysisId, analysisId));
+  } else {
+    const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
+    const templatePromises = styles.map((style, i) => {
+      return db.insert(cvTemplates).values({
+        analysisId: analysis.id,
+        templateNumber: i + 1,
+        templateStyle: style,
+        templateData: finalData as any,
+        isPaid: true
+      });
+    });
+    await Promise.all(templatePromises);
+  }
+
+  revalidatePath('/[locale]/results/[id]', 'page');
+  revalidatePath('/[locale]/templates/[id]', 'page');
+
+  return { success: true };
+}
+
+/**
+ * RULE: Credit Deduction Logic
+ * Trigger: User clicks Télécharger (First time) or Éditer (New analysis).
+ * Action: Deduct 1 credit and mark as paid (unlocks watermark/download).
+ */
+export async function deductCreditForAnalysis(analysisId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.clerkId, userId),
+  });
+
+  if (!dbUser) {
+    throw new Error("Utilisateur introuvable.");
+  }
+
+  if (isCreditsExpired(dbUser)) throw new Error("EXPIRED: Votre plan a expiré.");
+  if (getEffectiveCredits(dbUser) < 1) throw new Error("Crédits insuffisants.");
 
   const analysis = await db.query.cvAnalyses.findFirst({
     where: eq(cvAnalyses.id, analysisId)
   });
 
-  if (!analysis || !analysis.optimizedData) {
-    throw new Error("Analyse introuvable.");
-  }
+  if (!analysis) throw new Error("Analyse introuvable.");
+
+  // Rule: Check if already paid (no double deduction for same analysis)
+  const existingPaidTemplate = await db.query.cvTemplates.findFirst({
+    where: and(eq(cvTemplates.analysisId, analysisId), eq(cvTemplates.isPaid, true))
+  });
+
+  if (existingPaidTemplate) return { success: true, alreadyPaid: true };
 
   // 1. Deduct 1 Credit
   await db.update(users)
     .set({ credits: sql`${users.credits} - 1` })
     .where(eq(users.id, dbUser.id));
 
-  // 2. Generate Templates
-  const optimizedContent = analysis.optimizedData as any;
-  const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
-
-  const templatePromises = styles.map((style, i) => {
-    return db.insert(cvTemplates).values({
-      analysisId: analysis.id,
-      templateNumber: i + 1,
-      templateStyle: style,
-      templateData: {
-        ...(optimizedContent || {}),
-        contact: optimizedContent?.contact || {
-          email: "contact@exemple.com",
-          phone: "+33 6 00 00 00 00",
-          location: "Ville, Pays",
-        }
-      } as any,
-      isPaid: true // Mark as paid since we just deducted a credit
-    });
+  // 2. Ensure templates exist and mark as paid (unlocks watermark)
+  const existingTemplates = await db.query.cvTemplates.findMany({
+    where: eq(cvTemplates.analysisId, analysisId)
   });
 
-  await Promise.all(templatePromises);
+  if (existingTemplates.length === 0) {
+    const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
+    const templatePromises = styles.map((style, i) => db.insert(cvTemplates).values({
+      analysisId: analysisId,
+      templateNumber: i + 1,
+      templateStyle: style,
+      templateData: analysis.optimizedData as any,
+      isPaid: true
+    }));
+    await Promise.all(templatePromises);
+  } else {
+    await db.update(cvTemplates)
+      .set({ isPaid: true })
+      .where(eq(cvTemplates.analysisId, analysisId));
+  }
 
-  revalidatePath('/[locale]/results/[id]', 'page');
   revalidatePath('/[locale]/templates/[id]', 'page');
-
   return { success: true };
 }

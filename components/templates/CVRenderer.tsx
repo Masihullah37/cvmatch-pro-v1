@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/static-components, react/no-unescaped-entities */
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, Trash2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
 import Watermark from "@/components/templates/Watermark";
 
 // Inline SVG icons to avoid lucide-react client-only restriction
@@ -72,11 +77,98 @@ const Mail = ({
   </svg>
 );
 
+
+const InlineEdit = ({ value, path, isInteractive, onUpdate, className = "", multiline = false }: any) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentValue, setCurrentValue] = useState(value);
+  const inputRef = useRef<any>(null);
+
+  if (!isInteractive) return <span className={className}>{value}</span>;
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    if (currentValue !== value && onUpdate) onUpdate(path, currentValue);
+  };
+
+  if (isEditing) {
+    if (multiline) {
+      return (
+        <textarea
+          ref={inputRef}
+          value={currentValue}
+          onChange={(e) => setCurrentValue(e.target.value)}
+          onBlur={handleBlur}
+          autoFocus
+          className={`w-full bg-white/95 text-slate-950 border border-blue-300 rounded p-1 outline-none focus:ring-1 focus:ring-blue-400 shadow-sm ${className}`}
+          rows={Math.max(2, (currentValue || "").split('\n').length)}
+        />
+      );
+    }
+    return (
+      <input
+        ref={inputRef}
+        value={currentValue}
+        onChange={(e) => setCurrentValue(e.target.value)}
+        onBlur={handleBlur}
+        autoFocus
+        className={`w-full bg-white/95 border border-blue-300 rounded p-1 outline-none focus:ring-1 focus:ring-blue-400 text-slate-950 shadow-sm ${className}`}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentValue(value); setIsEditing(true); }}
+      className={`cursor-text hover:bg-white/20 hover:ring-1 hover:ring-blue-300 rounded transition-colors inline-block min-w-[20px] ${className}`}
+      title="Cliquez pour modifier"
+    >
+      {value || (multiline ? "\u00A0\n\u00A0" : "\u00A0")}
+    </span>
+  );
+};
+
+const DraggableSection = ({ id, isInteractive, onDelete, children, style: extraStyle = {}, className = "" }: any) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    ...extraStyle,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  if (!isInteractive) return <div style={extraStyle} className={className}>{children}</div>;
+
+  return (
+    <div ref={setNodeRef} style={style} className={`group relative ${className}`}>
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute left-1 top-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-grab active:cursor-grabbing p-1 bg-white rounded-md shadow-sm border border-slate-200 text-slate-500 hover:text-slate-700 transition-all z-[100]"
+        title="Déplacer"
+      >
+        <GripVertical size={14} />
+      </div>
+      <div
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(id); }}
+        className="absolute right-1 top-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-pointer p-1 bg-white rounded-md shadow-sm border border-red-200 text-red-500 hover:text-red-700 hover:bg-red-50 transition-all z-[100]"
+        title="Supprimer"
+      >
+        <Trash2 size={14} />
+      </div>
+      {children}
+    </div>
+  );
+};
+
 export const CVRenderer = ({
   template,
-  isPreview = false,
   isPaid = true,
   analysisData = null,
+  isInteractive = false,
+  onUpdate,
+  onDeleteSection,
 }: any) => {
   const data = (template.templateData as any) || {};
   const style = template.templateStyle;
@@ -100,134 +192,237 @@ export const CVRenderer = ({
     projects: "Projets",
     skills: "Compétences",
     languages: "Langues",
-    interests: "Intérêts",
     contact: "Contact",
     certifications: "Certifications",
   };
 
-  // --- REUSABLE SUB-COMPONENTS ---
-  const ContactLinks = ({ className }: { className: string }) => (
+  // --- STABLE REUSABLE SUB-COMPONENTS (Defined outside to prevent infinite unmount/remount loops) ---
+
+  const SectionTitle = ({ sectionKey, className, headers: sectionHeaders = headers, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
+    <h3 className={className}>
+      <InlineEdit
+        value={sectionHeaders?.[sectionKey] || sectionKey}
+        path={`headers.${sectionKey}`}
+        isInteractive={interactive}
+        onUpdate={updateHandler}
+      />
+    </h3>
+  );
+
+  const ExperienceTitle = ({ className, headers: sectionHeaders = headers, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
+    <h2 className={className}>
+      <InlineEdit value={sectionHeaders?.experience} path="headers.experience" isInteractive={interactive} onUpdate={updateHandler} />
+    </h2>
+  );
+
+  const ContactLinks = ({ className, contact: contactData = contact, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
     <>
-      {contact.linkedin && (
+      {contactData?.linkedin && (
         <p className={className}>
-          <strong>LinkedIn:</strong> {contact.linkedin}
+          <strong>LinkedIn:</strong>{" "}
+          <InlineEdit value={contactData.linkedin} path="contact.linkedin" isInteractive={interactive} onUpdate={updateHandler} />
         </p>
       )}
-      {contact.github && (
+      {contactData?.github && (
         <p className={className}>
-          <strong>GitHub:</strong> {contact.github}
+          <strong>GitHub:</strong>{" "}
+          <InlineEdit value={contactData.github} path="contact.github" isInteractive={interactive} onUpdate={updateHandler} />
         </p>
       )}
-      {contact.portfolio && (
+      {contactData?.portfolio && (
         <p className={className}>
-          <strong>Portfolio:</strong> {contact.portfolio}
+          <strong>Portfolio:</strong>{" "}
+          <InlineEdit value={contactData.portfolio} path="contact.portfolio" isInteractive={interactive} onUpdate={updateHandler} />
         </p>
       )}
     </>
   );
 
-  const LanguagesSection = ({
-    headerClass,
-    itemClass,
-  }: {
-    headerClass: string;
-    itemClass: string;
-  }) =>
-    languages.length > 0 ? (
-      <section>
-        <h3 className={headerClass}>{headers.languages}</h3>
+  const LanguagesSection = ({ headerClass, itemClass, languages: sectionLanguages = languages, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    if (!interactive && (!sectionLanguages || sectionLanguages.length === 0)) return null;
+    return (
+      <DraggableSection id="languages" isInteractive={interactive} onDelete={deleteHandler}>
+        <SectionTitle sectionKey="languages" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className="space-y-1 mt-3">
-          {languages.map((l: any, i: number) => (
+          {(sectionLanguages || []).map((l: any, i: number) => (
             <p key={i} className={itemClass}>
-              <strong>
-                {l.language || l.name || (typeof l === "string" ? l : "")}
-              </strong>
-              {l.level && <span className="opacity-70"> — {l.level}</span>}
+              <strong><InlineEdit value={l.language || l.name || (typeof l === "string" ? l : "")} path={`languages.${i}.language`} isInteractive={interactive} onUpdate={updateHandler} /></strong>
+              {l.level && <span className="opacity-70"> — <InlineEdit value={l.level} path={`languages.${i}.level`} isInteractive={isInteractive} onUpdate={onUpdate} /></span>}
             </p>
           ))}
         </div>
-      </section>
-    ) : null;
+      </DraggableSection>
+    );
+  };
 
-
-  const ProjectsSection = ({
-    headerClass,
-    itemClass,
-  }: {
-    headerClass: string;
-    itemClass: string;
-  }) =>
-    projects.length > 0 ? (
-      <section>
-        <h3 className={headerClass}>{headers.projects}</h3>
+  const ProjectsSection = ({ headerClass, itemClass, projects: sectionProjects = projects, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    if (!interactive && (!sectionProjects || sectionProjects.length === 0)) return null;
+    return (
+      <DraggableSection id="projects" isInteractive={interactive} onDelete={deleteHandler}>
+        <SectionTitle sectionKey="projects" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className="space-y-4 mt-3">
-          {projects.map((proj: any, i: number) => (
+          {(sectionProjects || []).map((proj: any, i: number) => (
             <div key={i} className={itemClass}>
-              <p className="font-bold">{proj.name}</p>
+              <p className="font-bold"><InlineEdit value={proj.name} path={`projects.${i}.name`} isInteractive={interactive} onUpdate={updateHandler} /></p>
               {proj.technologies && (
                 <p className="text-xs opacity-60">
-                  {Array.isArray(proj.technologies)
-                    ? proj.technologies.join(" • ")
-                    : proj.technologies}
+                  <InlineEdit value={Array.isArray(proj.technologies) ? proj.technologies.join(", ") : proj.technologies} path={`projects.${i}.technologies`} isInteractive={interactive} onUpdate={(path: string, val: any) => updateHandler(path, val.split(",").map((s: string) => s.trim()))} />
                 </p>
               )}
-              <p className="text-xs mt-1">{proj.description}</p>
+              <p className="text-xs mt-1"><InlineEdit value={proj.description} path={`projects.${i}.description`} isInteractive={interactive} onUpdate={updateHandler} multiline /></p>
             </div>
           ))}
         </div>
-      </section>
-    ) : null;
+      </DraggableSection>
+    );
+  };
 
-  const CustomSections = ({
-    headerClass,
-    itemClass,
-  }: {
-    headerClass: string;
-    itemClass: string;
-  }) => {
-    const standardKeys = [
-      "summary",
-      "experience",
-      "education",
-      "skills",
-      "languages",
-      "projects",
-      "contact",
-      "headers",
-      "photoUrl",
-      "userName",
-      "jobTitle",
-    ];
-    const customKeys = Object.keys(data).filter((k) => !standardKeys.includes(k));
+  const ExperienceSection = ({ headerClass, experiences: sectionExperiences = experiences, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    if (!interactive && (!sectionExperiences || sectionExperiences.length === 0)) return null;
+    return (
+      <DraggableSection id="experience" isInteractive={interactive} onDelete={deleteHandler}>
+        <ExperienceTitle className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
+        <div className="space-y-10">
+          {(sectionExperiences || []).map((exp: any, i: number) => (
+            <div key={i} className="flex gap-6 relative">
+              <div className="w-px bg-slate-200 relative"><div className="absolute top-2 -left-1 w-2.5 h-2.5 bg-[#3d3d3d] rounded-full"></div></div>
+              <div className="flex-1 pb-4">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="text-[13px] font-black text-slate-900 uppercase"><InlineEdit value={exp.company} path={`experience.${i}.company`} isInteractive={interactive} onUpdate={updateHandler} /></h4>
+                  <p className="text-[12px] font-black text-slate-700"><InlineEdit value={exp.title} path={`experience.${i}.title`} isInteractive={interactive} onUpdate={updateHandler} /></p>
+                </div>
+                <div className="text-[10px] text-slate-400 mb-2"><InlineEdit value={exp.period} path={`experience.${i}.period`} isInteractive={interactive} onUpdate={updateHandler} /></div>
+                <p className="text-[11px] leading-relaxed text-slate-500 whitespace-pre-line"><InlineEdit value={exp.description} path={`experience.${i}.description`} isInteractive={interactive} onUpdate={updateHandler} multiline /></p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </DraggableSection>
+    );
+  };
 
+  const EducationSection = ({ headerClass, education: sectionEducation = education, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    if (!interactive && (!sectionEducation || sectionEducation.length === 0)) return null;
+    return (
+      <DraggableSection id="education" isInteractive={interactive} onDelete={deleteHandler}>
+        <SectionTitle sectionKey="education" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
+        <div className="space-y-8">
+          {(sectionEducation || []).map((edu: any, i: number) => (
+            <div key={i} className="flex gap-6 relative">
+              <div className="w-px bg-slate-200 relative"><div className="absolute top-2 -left-1 w-2.5 h-2.5 bg-[#3d3d3d] rounded-full"></div></div>
+              <div className="flex-1 pb-4">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="text-[13px] font-black text-slate-900 uppercase"><InlineEdit value={edu.school} path={`education.${i}.school`} isInteractive={interactive} onUpdate={updateHandler} /></h4>
+                  <p className="text-[12px] font-black text-slate-700"><InlineEdit value={edu.degree} path={`education.${i}.degree`} isInteractive={interactive} onUpdate={updateHandler} /></p>
+                </div>
+                <p className="text-[11px] text-slate-400"><InlineEdit value={edu.year} path={`education.${i}.year`} isInteractive={interactive} onUpdate={updateHandler} /></p>
+                {edu.details && <p className="text-[11px] text-slate-500 mt-1"><InlineEdit value={edu.details} path={`education.${i}.details`} isInteractive={interactive} onUpdate={updateHandler} multiline /></p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </DraggableSection>
+    );
+  };
+
+  const SummarySection = ({ headerClass, itemClass, summaryText: sectionSummary = summaryText, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => (
+    <DraggableSection id="summary" isInteractive={interactive} onDelete={deleteHandler}>
+      <SectionTitle sectionKey="summary" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
+      <p className={`${itemClass} mt-3 whitespace-pre-line`}><InlineEdit value={sectionSummary} path="summary" isInteractive={interactive} onUpdate={updateHandler} multiline /></p>
+    </DraggableSection>
+  );
+
+  const SkillsSection = ({ headerClass, itemClass, layout = "tags", skills: sectionSkills = skills, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    if (!interactive && (!sectionSkills || sectionSkills.length === 0)) return null;
+    return (
+      <DraggableSection id="skills" isInteractive={interactive} onDelete={deleteHandler}>
+        <SectionTitle sectionKey="skills" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
+        <div className={layout === "tags" ? "flex flex-wrap gap-2 mt-3" : "space-y-2 mt-3"}>
+          {(sectionSkills || []).map((s: string, i: number) => (
+            <span key={i} className={`${itemClass} ${layout === "tags" ? "inline-block" : ""}`}>
+              <InlineEdit value={s} path={`skills.${i}`} isInteractive={interactive} onUpdate={updateHandler} />
+            </span>
+          ))}
+        </div>
+      </DraggableSection>
+    );
+  };
+
+  const ContactSection = ({ headerClass, itemClass = "", contact: contactData = contact, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    if (!sectionHeaders?.contact) return null;
+    return (
+      <DraggableSection id="contact" isInteractive={interactive} onDelete={deleteHandler}>
+        <SectionTitle sectionKey="contact" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
+        <div className={`space-y-2 ${itemClass}`}>
+          {contactData?.location && <p><InlineEdit value={contactData.location} path="contact.location" isInteractive={interactive} onUpdate={updateHandler} /></p>}
+          <p><InlineEdit value={contactData?.email || ""} path="contact.email" isInteractive={interactive} onUpdate={updateHandler} /></p>
+          <p><InlineEdit value={contactData?.phone || ""} path="contact.phone" isInteractive={interactive} onUpdate={updateHandler} /></p>
+          <ContactLinks contact={contactData} isInteractive={interactive} onUpdate={updateHandler} />
+        </div>
+      </DraggableSection>
+    );
+  };
+
+  const IdentityHeader = ({ nameClass, titleClass, containerClass = "", contactContainerClass = "text-right space-y-1 text-[10px] font-bold text-slate-500", showIcons = true, showContact = true, name: displayName = name, title: displayTitle = title, contact: contactData = contact, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
+    <header className={containerClass}>
+      <div>
+        <h1 className={nameClass}><InlineEdit value={displayName} path="userName" isInteractive={interactive} onUpdate={updateHandler} /></h1>
+        <p className={titleClass}><InlineEdit value={displayTitle} path="jobTitle" isInteractive={interactive} onUpdate={updateHandler} /></p>
+      </div>
+      {showContact && headers?.contact && (
+        <DraggableSection id="contact" isInteractive={interactive} onDelete={onDeleteSection}>
+          <div className={contactContainerClass}>
+            {contactData?.location && <div className="flex items-center justify-end gap-2"><span><InlineEdit value={contactData.location} path="contact.location" isInteractive={interactive} onUpdate={updateHandler} /></span>{showIcons && <MapPin size={10} className="text-slate-300" />}</div>}
+            <div className="flex items-center justify-end gap-2"><span><InlineEdit value={contactData?.phone || ""} path="contact.phone" isInteractive={interactive} onUpdate={updateHandler} /></span>{showIcons && <Phone size={10} className="text-slate-300" />}</div>
+            <div className="flex items-center justify-end gap-2"><span><InlineEdit value={contactData?.email || ""} path="contact.email" isInteractive={interactive} onUpdate={updateHandler} /></span>{showIcons && <Mail size={10} className="text-slate-300" />}</div>
+            <ContactLinks contact={contactData} isInteractive={interactive} onUpdate={updateHandler} />
+          </div>
+        </DraggableSection>
+      )}
+    </header>
+  );
+
+  const DynamicMainSections = ({ headerClass, itemClass, data: sectionData = data, style: templateStyle = style, experiences: sectionExperiences = experiences, education: sectionEducation = education, projects: sectionProjects = projects, languages: sectionLanguages = languages, skills: sectionSkills = skills, summaryText: sectionSummary = summaryText, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
+    // Deduplicate order to prevent "duplicate key" React errors
+    const order = Array.from(new Set(sectionData?.sectionOrder || ["summary", "experience", "projects", "education", "skills", "languages"])) as string[];
     return (
       <>
-        {customKeys.map((key) => {
-          const items = data[key];
-          const header = headers[key] || key;
-          if (!items || (Array.isArray(items) && items.length === 0)) return null;
+        {order.map((key) => {
+          if (key === "summary" && ["Horizon", "Lunar", "Stellar", "Solar", "Nebula"].includes(templateStyle)) return null;
+          if (key === "contact") return null;
+          if (key === "skills" && ["Horizon", "Eclipse", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Europass", "Galaxy"].includes(templateStyle)) return null;
+          if (key === "languages" && ["Eclipse", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Europass"].includes(templateStyle)) return null;
 
-          return (
-            <section key={key}>
-              <h3 className={headerClass}>{header}</h3>
-              {Array.isArray(items) ? (
-                <div className="space-y-1 mt-3">
-                  {items.map((it: any, i: number) => (
-                    <p key={i} className={itemClass}>
-                      {it}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className={`${itemClass} mt-3 whitespace-pre-line`}>{items}</p>
-              )}
-            </section>
-          );
+          if (key === "experience") return <ExperienceSection key={key} headerClass={headerClass} experiences={sectionExperiences} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+          if (key === "education") return <EducationSection key={key} headerClass={headerClass} education={sectionEducation} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+          if (key === "projects") return <ProjectsSection key={key} headerClass={headerClass} itemClass={itemClass} projects={sectionProjects} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+          if (key === "languages") return <LanguagesSection key={key} headerClass={headerClass} itemClass={itemClass} languages={sectionLanguages} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+          if (key === "skills") return <SkillsSection key={key} headerClass={headerClass} itemClass={itemClass} skills={sectionSkills} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+          if (key === "summary") return <SummarySection key={key} headerClass={headerClass} itemClass={itemClass} summaryText={sectionSummary} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+
+          const standardKeys = ["summary", "experience", "education", "skills", "languages", "projects", "contact", "headers", "photourl", "username", "jobtitle", "_originalcvtext", "_originalcvcontext", "sectionorder"];
+          if (!standardKeys.includes(key.toLowerCase()) && key in (sectionData || {})) {
+            const items = sectionData[key];
+            const isEmpty = !items || (Array.isArray(items) && items.length === 0) || (typeof items === 'string' && items.trim() === '');
+
+            if (!interactive && isEmpty) return null;
+
+            return (
+              <DraggableSection key={key} id={key} isInteractive={interactive} onDelete={deleteHandler}>
+                <SectionTitle sectionKey={key} className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
+                {Array.isArray(items) ? (
+                  <div className="space-y-1 mt-3">{items.map((it: any, i: number) => (<p key={i} className={itemClass}><InlineEdit value={it} path={`${key}.${i}`} isInteractive={interactive} onUpdate={updateHandler} /></p>))}</div>
+                ) : (
+                  <p className={`${itemClass} mt-3 whitespace-pre-line`}><InlineEdit value={items} path={key} isInteractive={interactive} onUpdate={updateHandler} multiline /></p>
+                )}
+              </DraggableSection>
+            );
+          }
+          return null;
         })}
       </>
     );
   };
-
   const ProtectionOverlay = () =>
     !isPaid && (
       <div className="absolute inset-0 z-[60] select-none pointer-events-none">
@@ -241,12 +436,20 @@ export const CVRenderer = ({
       className={`w-[210mm] min-h-[297mm] bg-white shadow-sm overflow-hidden text-left mx-auto relative select-none cv-printable`}
       onContextMenu={(e) => !isPaid && e.preventDefault()}
     >
+      <style>{`
+        .cv-readable-sidebar,
+        .cv-readable-sidebar *:not(input):not(textarea):not(button) { color: #ffffff !important; }
+        .cv-readable-sidebar .muted-readable { color: rgba(255,255,255,.78) !important; }
+        .cv-readable-sidebar [class*="border-"] { border-color: rgba(255,255,255,.24) !important; }
+        .cv-readable-sidebar input,
+        .cv-readable-sidebar textarea { color: #0f172a !important; }
+      `}</style>
       <ProtectionOverlay />
 
       {/* --- STYLE: HORIZON --- */}
       {style === "Horizon" && (
         <div className="flex min-h-[297mm] w-[210mm] font-sans bg-white">
-          <div className="w-[30%] bg-[#3d3d3d] text-white p-10 flex flex-col gap-10">
+          <div className="cv-readable-sidebar w-[30%] bg-[#3d3d3d] text-white p-10 flex flex-col gap-10">
             {data.photoUrl && (
               <div className="w-32 h-32 rounded-full border-4 border-white/20 mx-auto overflow-hidden shadow-2xl">
                 <img
@@ -260,129 +463,30 @@ export const CVRenderer = ({
               <h3 className="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2">
                 À propos
               </h3>
-              <p className="text-[11px] leading-relaxed opacity-80">
-                {summaryText}
+              <p className="text-[11px] leading-relaxed text-white">
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
               </p>
             </section>
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2">
-                Liens
-              </h3>
-              <div className="text-[11px] space-y-2 opacity-80">
-                <ContactLinks className="" />
-              </div>
-            </section>
-            <LanguagesSection
+            <ContactSection
               headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[10px] opacity-70"
+              itemClass="text-[11px] opacity-90"
             />
-            {skills.length > 0 && (
-              <section className="space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2">
-                  {headers.skills}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((s: string, i: number) => (
-                    <span
-                      key={i}
-                      className="text-[9px] bg-white/10 px-2 py-1 rounded"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
+            <SkillsSection
+              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
+              itemClass="text-[9px] bg-white/20 px-2 py-1 rounded text-white"
+            />
           </div>
-          <div className="flex-1 p-12 space-y-12">
-            <header className="flex justify-between items-start border-b border-slate-100 pb-8">
-              <div>
-                <h1 className="text-4xl font-black text-[#222] uppercase tracking-tighter">
-                  {name}
-                </h1>
-                <p className="text-lg font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                  {title}
-                </p>
-              </div>
-              <div className="text-right space-y-1 text-[10px] font-bold text-slate-500">
-                {contact.location && (
-                  <div className="flex items-center justify-end gap-2">
-                    <span>{contact.location}</span>
-                    <MapPin size={10} className="text-slate-300" />
-                  </div>
-                )}
-                <div className="flex items-center justify-end gap-2">
-                  <span>{contact.phone}</span>
-                  <Phone size={10} className="text-slate-300" />
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <span>{contact.email}</span>
-                  <Mail size={10} className="text-slate-300" />
-                </div>
-              </div>
-            </header>
-            <section>
-              <h2 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2">
-                {headers.experience}
-              </h2>
-              <div className="space-y-10">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i} className="flex gap-6 relative">
-                    <div className="w-px bg-slate-200 relative">
-                      <div className="absolute top-2 -left-1 w-2.5 h-2.5 bg-[#3d3d3d] rounded-full"></div>
-                    </div>
-                    <div className="flex-1 pb-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="text-[13px] font-black text-slate-900 uppercase">
-                          {exp.company}
-                        </h4>
-                        <p className="text-[12px] font-black text-slate-700">
-                          {exp.title}
-                        </p>
-                      </div>
-                      <p className="text-[11px] leading-relaxed text-slate-500 whitespace-pre-line">
-                        {exp.description}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-            <ProjectsSection
-              headerClass="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2"
-              itemClass="mb-4"
+          <div className="flex-1 p-12 flex flex-col gap-12">
+            <IdentityHeader
+              nameClass="text-4xl font-black text-[#222] uppercase tracking-tighter"
+              titleClass="text-lg font-bold text-slate-400 mt-1 uppercase tracking-widest"
+              containerClass="flex justify-between items-start border-b border-slate-100 pb-8"
+              showContact={false}
             />
-            <CustomSections
+            <DynamicMainSections
               headerClass="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2"
               itemClass="text-[11px] leading-relaxed text-slate-500"
             />
-            {education.length > 0 && (
-              <section>
-                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2">
-                  {headers.education}
-                </h2>
-                <div className="space-y-8">
-                  {education.map((edu: any, i: number) => (
-                    <div key={i} className="flex gap-6 relative">
-                      <div className="w-px bg-slate-200 relative">
-                        <div className="absolute top-2 -left-1 w-2.5 h-2.5 bg-[#3d3d3d] rounded-full"></div>
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="text-[13px] font-black text-slate-900 uppercase">
-                            {edu.school}
-                          </h4>
-                          <p className="text-[12px] font-black text-slate-700">
-                            {edu.degree}
-                          </p>
-                        </div>
-                        <p className="text-[11px] text-slate-400">{edu.year}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
         </div>
       )}
@@ -392,94 +496,44 @@ export const CVRenderer = ({
         <div className="p-16 font-serif text-[#1a1a1a]">
           <div className="text-center border-b-2 border-gray-100 pb-10 mb-10">
             <h1 className="text-5xl font-bold uppercase tracking-widest mb-4">
-              {name}
+              <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
             </h1>
-            <p className="text-xl italic text-gray-500">{title}</p>
+            <p className="text-xl italic text-gray-500">
+              <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+            </p>
+            {headers.contact && (
+            <DraggableSection id="contact" isInteractive={isInteractive} onDelete={onDeleteSection}>
             <div className="mt-4 flex flex-col items-center gap-2 text-xs font-sans uppercase tracking-widest text-gray-400">
               <p>
-                {contact.location} • {contact.email} • {contact.phone}
+                <InlineEdit value={contact.location} path="contact.location" isInteractive={isInteractive} onUpdate={onUpdate} />
+                {" • "}
+                <InlineEdit value={contact.email} path="contact.email" isInteractive={isInteractive} onUpdate={onUpdate} />
+                {" • "}
+                <InlineEdit value={contact.phone} path="contact.phone" isInteractive={isInteractive} onUpdate={onUpdate} />
               </p>
               <ContactLinks className="" />
             </div>
-          </div>
-          <div className="space-y-10 font-sans">
-            <section>
-              <h3 className="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400">
-                {headers.summary}
-              </h3>
-              <p className="text-sm leading-relaxed text-gray-700">
-                {summaryText}
-              </p>
-            </section>
-            <section>
-              <h3 className="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400">
-                {headers.experience}
-              </h3>
-              <div className="space-y-8">
-                {experiences.map((exp: any, i: number) => (
-                  <div
-                    key={i}
-                    className="relative pl-6 border-l border-gray-100"
-                  >
-                    <div className="flex justify-between items-baseline mb-1">
-                      <h4 className="text-lg font-bold">{exp.title}</h4>
-                      <span className="text-xs text-gray-400">
-                        {exp.period}
-                      </span>
-                    </div>
-                    <p className="text-sm font-bold text-gray-500 mb-2">
-                      {exp.company}
-                    </p>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {education.length > 0 && (
-              <section>
-                <h3 className="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400">
-                  {headers.education}
-                </h3>
-                <div className="space-y-6">
-                  {education.map((edu: any, i: number) => (
-                    <div
-                      key={i}
-                      className="relative pl-6 border-l border-gray-100"
-                    >
-                      <div className="flex justify-between items-baseline mb-1">
-                        <h4 className="text-base font-bold">{edu.degree}</h4>
-                        <span className="text-xs text-gray-400">
-                          {edu.year}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">{edu.school}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+            </DraggableSection>
             )}
-            <ProjectsSection
+          </div>
+          <div className="flex flex-col gap-10 font-sans">
+            <DynamicMainSections
               headerClass="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400"
-              itemClass="relative pl-6 border-l border-gray-100 mb-4"
+              itemClass="text-sm text-gray-700"
             />
             {skills.length > 0 && (
-              <section>
-                <h3 className="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400">
-                  {headers.skills}
-                </h3>
-                <p className="text-sm text-gray-600">{skills.join(" • ")}</p>
-              </section>
+              <DraggableSection id="skills" isInteractive={isInteractive} onDelete={onDeleteSection}>
+                <SectionTitle sectionKey="skills" className="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400" />
+                <p className="text-sm text-gray-600">
+                  <InlineEdit
+                    value={skills.join(" • ")}
+                    path="skills"
+                    isInteractive={isInteractive}
+                    onUpdate={(path: string, val: any) => onUpdate(path, val.split("•").map((s: string) => s.trim()))}
+                  />
+                </p>
+              </DraggableSection>
             )}
-            <LanguagesSection
-              headerClass="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400"
-              itemClass="text-sm"
-            />
-            <CustomSections
-              headerClass="text-sm font-black uppercase tracking-[0.3em] mb-4 text-gray-400"
-              itemClass="text-sm text-gray-600"
-            />
           </div>
         </div>
       )}
@@ -487,7 +541,7 @@ export const CVRenderer = ({
       {/* --- STYLE: ECLIPSE --- */}
       {style === "Eclipse" && (
         <div className="flex min-h-[297mm] w-[210mm] font-sans text-[#333]">
-          <div className="w-[35%] bg-[#1a1a1a] text-white p-10 flex flex-col gap-10">
+          <div className="cv-readable-sidebar w-[35%] bg-[#1a1a1a] text-white p-10 flex flex-col gap-10">
             {data.photoUrl && (
               <div className="w-40 h-40 rounded-3xl border-4 border-white/10 mx-auto overflow-hidden">
                 <img
@@ -499,98 +553,39 @@ export const CVRenderer = ({
             )}
             <div>
               <h1 className="text-[28px] font-black leading-[1.1] uppercase mb-4">
-                {name}
+                <InlineEdit
+                  value={name}
+                  path="userName"
+                  isInteractive={isInteractive}
+                  onUpdate={onUpdate}
+                />
               </h1>
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-                {title}
+              <p className="text-sm font-bold text-slate-300 uppercase tracking-widest">
+                <InlineEdit
+                  value={title}
+                  path="jobTitle"
+                  isInteractive={isInteractive}
+                  onUpdate={onUpdate}
+                />
               </p>
             </div>
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2">
-                {headers.contact}
-              </h3>
-              <div className="text-[11px] space-y-2 opacity-80">
-                {contact.location && <p>{contact.location}</p>}
-                <p>{contact.email}</p>
-                <p>{contact.phone}</p>
-                <ContactLinks className="" />
-              </div>
-            </section>
+            <ContactSection
+              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
+              itemClass="text-[11px] text-white/90"
+            />
             <LanguagesSection
               headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] opacity-80"
+              itemClass="text-[11px] text-white/90"
             />
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2">
-                {headers.skills}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {skills.map((s: string, i: number) => (
-                  <span
-                    key={i}
-                    className="text-[10px] bg-white/10 px-2 py-1 rounded"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </section>
+            <SkillsSection
+              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
+              itemClass="text-[10px] bg-white/20 px-2 py-1 rounded text-white"
+            />
           </div>
-          <div className="flex-1 p-16 space-y-12">
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6">
-                {headers.summary}
-              </h2>
-              <p className="text-[13px] leading-relaxed text-gray-600">
-                {summaryText}
-              </p>
-            </section>
-            <section>
-              <h2 className="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6">
-                {headers.experience}
-              </h2>
-              <div className="space-y-8">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i}>
-                    <div className="flex justify-between font-bold text-[13px]">
-                      <span>{exp.title}</span>
-                      <span className="text-gray-400">{exp.period}</span>
-                    </div>
-                    <p className="text-[11px] font-black text-gray-500 uppercase mb-2">
-                      {exp.company}
-                    </p>
-                    <p className="text-[12px] text-gray-600 leading-relaxed whitespace-pre-line">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {education.length > 0 && (
-              <section>
-                <h2 className="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6">
-                  {headers.education}
-                </h2>
-                <div className="space-y-6">
-                  {education.map((edu: any, i: number) => (
-                    <div key={i}>
-                      <div className="flex justify-between font-bold text-[13px]">
-                        <span>{edu.degree}</span>
-                        <span className="text-gray-400">{edu.year}</span>
-                      </div>
-                      <p className="text-[11px] text-gray-500">{edu.school}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <ProjectsSection
+          <div className="flex-1 p-16 flex flex-col gap-12">
+            <DynamicMainSections
               headerClass="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6"
-              itemClass="mb-6"
-            />
-            <CustomSections
-              headerClass="text-xl font-black uppercase tracking-tighter border-l-4 border-black pl-4 mb-6"
-              itemClass="text-[12px] text-gray-600"
+              itemClass="text-[13px] leading-relaxed text-gray-600"
             />
           </div>
         </div>
@@ -599,67 +594,56 @@ export const CVRenderer = ({
       {/* --- STYLE: AETHER --- */}
       {style === "Aether" && (
         <div className="p-16 font-sans text-gray-900">
-          <div className="flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10">
-            <div>
-              <h1 className="text-5xl font-black tracking-tighter">{name}</h1>
-              <p className="text-xl font-bold text-gray-500 mt-1">{title}</p>
-            </div>
-            <div className="text-right text-xs font-bold space-y-1">
-              {contact.location && <p>{contact.location}</p>}
-              <p>{contact.email}</p>
-              <p>{contact.phone}</p>
-              <ContactLinks className="" />
-            </div>
-          </div>
+          <IdentityHeader
+            nameClass="text-5xl font-black tracking-tighter"
+            titleClass="text-xl font-bold text-gray-500 mt-1"
+            containerClass="flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10"
+            contactContainerClass="text-right text-xs font-bold space-y-1 text-gray-700"
+            showIcons={false}
+          />
           <div className="grid grid-cols-12 gap-12">
-            <div className="col-span-8 space-y-10">
-              <section>
-                <h3 className="text-lg font-black border-b border-gray-200 pb-2 mb-4">
-                  {headers.experience}
-                </h3>
+            <div className="col-span-8 flex flex-col gap-10">
+              <DraggableSection id="experience" isInteractive={isInteractive} onDelete={onDeleteSection}>
+                <SectionTitle sectionKey="experience" className="text-lg font-black border-b border-gray-200 pb-2 mb-4" />
                 {experiences.map((exp: any, i: number) => (
                   <div key={i} className="mb-6">
                     <p className="font-black text-base">
-                      {exp.company} | {exp.title}
+                      <InlineEdit value={exp.company} path={`experience.${i}.company`} isInteractive={isInteractive} onUpdate={onUpdate} /> | <InlineEdit value={exp.title} path={`experience.${i}.title`} isInteractive={isInteractive} onUpdate={onUpdate} />
                     </p>
                     <p className="text-xs text-gray-400 font-bold mb-2">
-                      {exp.period}
+                      <InlineEdit value={exp.period} path={`experience.${i}.period`} isInteractive={isInteractive} onUpdate={onUpdate} />
                     </p>
                     <p className="text-sm text-gray-600 leading-relaxed">
-                      {exp.description}
+                      <InlineEdit value={exp.description} path={`experience.${i}.description`} isInteractive={isInteractive} onUpdate={onUpdate} multiline />
                     </p>
                   </div>
                 ))}
-              </section>
+              </DraggableSection>
               {education.length > 0 && (
-                <section>
-                  <h3 className="text-lg font-black border-b border-gray-200 pb-2 mb-4">
-                    {headers.education}
-                  </h3>
+                <DraggableSection id="education" isInteractive={isInteractive} onDelete={onDeleteSection}>
+                  <SectionTitle sectionKey="education" className="text-lg font-black border-b border-gray-200 pb-2 mb-4" />
                   {education.map((edu: any, i: number) => (
                     <div key={i} className="mb-4">
-                      <p className="font-black text-base">{edu.degree}</p>
+                      <p className="font-black text-base"><InlineEdit value={edu.degree} path={`education.${i}.degree`} isInteractive={isInteractive} onUpdate={onUpdate} /></p>
                       <p className="text-xs text-gray-500">
                         {edu.school} • {edu.year}
                       </p>
                     </div>
                   ))}
-                </section>
+                </DraggableSection>
               )}
               <ProjectsSection
                 headerClass="text-lg font-black border-b border-gray-200 pb-2 mb-4"
                 itemClass="mb-6"
               />
             </div>
-            <div className="col-span-4 space-y-8">
-              <section>
-                <h3 className="text-sm font-black uppercase border-b border-gray-200 pb-2 mb-4">
-                  {headers.summary}
-                </h3>
+            <div className="col-span-4 flex flex-col gap-8">
+              <DraggableSection id="summary" isInteractive={isInteractive} onDelete={onDeleteSection}>
+                <SectionTitle sectionKey="summary" className="text-sm font-black uppercase border-b border-gray-200 pb-2 mb-4" />
                 <p className="text-xs text-gray-600 leading-relaxed italic">
-                  "{summaryText}"
+                  "<InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />"
                 </p>
-              </section>
+              </DraggableSection>
               <LanguagesSection
                 headerClass="text-sm font-black uppercase border-b border-gray-200 pb-2 mb-4"
                 itemClass="text-xs"
@@ -684,7 +668,7 @@ export const CVRenderer = ({
       {/* --- STYLE: HYPERION --- */}
       {style === "Hyperion" && (
         <div className="flex min-h-[297mm] font-sans">
-          <div className="w-[30%] bg-[#064e3b] text-white p-10 flex flex-col gap-10">
+          <div className="cv-readable-sidebar w-[30%] bg-[#064e3b] text-white p-10 flex flex-col gap-10">
             {data.photoUrl ? (
               <div className="w-32 h-32 rounded-3xl overflow-hidden border-2 border-emerald-400/30">
                 <img
@@ -698,100 +682,32 @@ export const CVRenderer = ({
                 {name[0]}
               </div>
             )}
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400">
-                {headers.contact}
-              </h3>
-              <div className="text-[10px] space-y-2 opacity-80">
-                {contact.location && <p>{contact.location}</p>}
-                <p>{contact.email}</p>
-                <p>{contact.phone}</p>
-                <ContactLinks className="" />
-              </div>
-            </section>
+            <ContactSection
+              headerClass="text-xs font-black uppercase tracking-widest text-emerald-400"
+              itemClass="text-[10px] text-white"
+            />
             <LanguagesSection
               headerClass="text-xs font-black uppercase tracking-widest text-emerald-400"
-              itemClass="text-[10px] opacity-80"
+              itemClass="text-[10px] text-white"
             />
-            <section className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400">
-                {headers.skills}
-              </h3>
-              <div className="space-y-3">
-                {skills.map((s: string, i: number) => (
-                  <div
-                    key={i}
-                    className="bg-emerald-800/50 p-2 rounded-lg text-[10px] font-bold border border-emerald-700/50"
-                  >
-                    {s}
-                  </div>
-                ))}
-              </div>
-            </section>
+            <SkillsSection
+              headerClass="text-xs font-black uppercase tracking-widest text-emerald-400"
+              itemClass="bg-emerald-800/50 p-2 rounded-lg text-[10px] font-bold border border-emerald-700/50"
+              layout="list"
+            />
           </div>
-          <div className="flex-1 p-16 space-y-12">
+          <div className="flex-1 p-16 flex flex-col gap-12">
             <header>
               <h1 className="text-5xl font-black text-emerald-950 tracking-tighter">
-                {name}
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
               </h1>
-              <p className="text-xl font-bold text-emerald-600 mt-2">{title}</p>
+              <p className="text-xl font-bold text-emerald-600 mt-2">
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </p>
             </header>
-            <section>
-              <h2 className="text-lg font-black text-emerald-900 border-b-2 border-emerald-100 pb-2 mb-6 uppercase">
-                {headers.experience}
-              </h2>
-              <div className="space-y-8">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i}>
-                    <div className="flex justify-between items-baseline mb-2">
-                      <h4 className="text-base font-black text-gray-900">
-                        {exp.title}
-                      </h4>
-                      <span className="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                        {exp.period}
-                      </span>
-                    </div>
-                    <p className="text-sm font-bold text-emerald-800 italic mb-2">
-                      {exp.company}
-                    </p>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {education.length > 0 && (
-              <section>
-                <h2 className="text-lg font-black text-emerald-900 border-b-2 border-emerald-100 pb-2 mb-6 uppercase">
-                  {headers.education}
-                </h2>
-                <div className="space-y-6">
-                  {education.map((edu: any, i: number) => (
-                    <div key={i}>
-                      <div className="flex justify-between items-baseline mb-1">
-                        <h4 className="text-base font-bold text-gray-900">
-                          {edu.degree}
-                        </h4>
-                        <span className="text-xs text-gray-400">
-                          {edu.year}
-                        </span>
-                      </div>
-                      <p className="text-sm text-emerald-700 italic">
-                        {edu.school}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <ProjectsSection
+            <DynamicMainSections
               headerClass="text-lg font-black text-emerald-900 border-b-2 border-emerald-100 pb-2 mb-6 uppercase"
-              itemClass="mb-6"
-            />
-            <CustomSections
-              headerClass="text-lg font-black text-emerald-900 border-b-2 border-emerald-100 pb-2 mb-6 uppercase"
-              itemClass="text-sm text-gray-600"
+              itemClass="text-sm text-gray-600 leading-relaxed"
             />
           </div>
         </div>
@@ -812,95 +728,36 @@ export const CVRenderer = ({
             )}
             <div>
               <h1 className="text-4xl font-light tracking-tighter text-slate-900 mb-2">
-                {name}
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
               </h1>
               <p className="text-lg font-bold text-slate-400 tracking-widest uppercase">
-                {title}
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
               </p>
             </div>
           </header>
           <div className="grid grid-cols-12 gap-8">
-            <div className="col-span-4 space-y-12">
-              <section>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
-                  {headers.contact}
-                </h3>
-                <div className="space-y-1 text-sm font-bold text-slate-600">
-                  {contact.location && <p>{contact.location}</p>}
-                  <p>{contact.email}</p>
-                  <p>{contact.phone}</p>
-                  <ContactLinks className="" />
-                </div>
-              </section>
+            <div className="col-span-4 flex flex-col gap-12">
+              <ContactSection
+                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-4"
+                itemClass="text-sm font-bold text-slate-600"
+              />
               <LanguagesSection
                 headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-4"
                 itemClass="text-sm font-bold text-slate-600"
               />
-              <section>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
-                  {headers.skills}
-                </h3>
-                <div className="space-y-2">
-                  {skills.map((s: string, i: number) => (
-                    <p key={i} className="text-sm font-bold text-slate-700">
-                      # {s}
-                    </p>
-                  ))}
-                </div>
-              </section>
-            </div>
-            <div className="col-span-8 space-y-16">
-              <p className="text-sm leading-relaxed text-gray-600 font-medium italic">
-                "{summaryText}"
-              </p>
-              <section>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-8">
-                  {headers.experience}
-                </h3>
-                <div className="space-y-12">
-                  {experiences.map((exp: any, i: number) => (
-                    <div key={i}>
-                      <h4 className="text-xl font-bold text-slate-900 mb-1">
-                        {exp.title}
-                      </h4>
-                      <div className="flex gap-4 text-sm font-bold text-slate-400 mb-4">
-                        <span>{exp.company}</span>
-                        <span>|</span>
-                        <span>{exp.period}</span>
-                      </div>
-                      <p className="text-sm leading-relaxed text-slate-600 whitespace-pre-line">
-                        {exp.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              {education.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-8">
-                    {headers.education}
-                  </h3>
-                  <div className="space-y-8">
-                    {education.map((edu: any, i: number) => (
-                      <div key={i}>
-                        <h4 className="text-lg font-bold text-slate-900 mb-1">
-                          {edu.degree}
-                        </h4>
-                        <p className="text-sm font-bold text-slate-400">
-                          {edu.school} • {edu.year}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <ProjectsSection
-                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-8"
-                itemClass="mb-8"
+              <SkillsSection
+                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-4"
+                itemClass="text-sm font-bold text-slate-700"
+                layout="list"
               />
-              <CustomSections
+            </div>
+            <div className="col-span-8 flex flex-col gap-16">
+              <p className="text-sm leading-relaxed text-gray-600 font-medium italic">
+                "<InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />"
+              </p>
+              <DynamicMainSections
                 headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-8"
-                itemClass="text-sm text-slate-600"
+                itemClass="text-sm leading-relaxed text-slate-600"
               />
             </div>
           </div>
@@ -910,114 +767,35 @@ export const CVRenderer = ({
       {/* --- STYLE: STELLAR --- */}
       {style === "Stellar" && (
         <div className="font-sans min-h-[297mm] bg-white">
-          <div className="h-48 bg-gradient-to-r from-indigo-600 to-purple-600 p-10 text-white relative flex justify-between items-center">
-            <div className="flex gap-8 items-center">
-              {data.photoUrl && (
-                <div className="w-28 h-28 rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl">
-                  <img
-                    src={data.photoUrl}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-              <div>
-                <h1 className="text-5xl font-black mb-2">{name}</h1>
-                <p className="text-xl font-medium opacity-90">{title}</p>
-              </div>
-            </div>
-            <div className="absolute -bottom-8 right-16 bg-white shadow-xl p-6 rounded-2xl flex flex-col gap-2 text-xs font-bold text-gray-500">
-              {contact.location && <p>{contact.location}</p>}
-              <p>{contact.email}</p>
-              <p>{contact.phone}</p>
-              <ContactLinks className="" />
-            </div>
-          </div>
+          <IdentityHeader
+            nameClass="text-5xl font-black mb-2 text-white"
+            titleClass="text-xl font-medium opacity-90 text-white"
+            containerClass="h-48 bg-gradient-to-r from-indigo-600 to-purple-600 p-10 relative flex justify-between items-center"
+            contactContainerClass="absolute -bottom-8 right-16 bg-white shadow-xl p-6 rounded-2xl flex flex-col gap-2 text-xs font-bold text-gray-500"
+            showIcons={false}
+          />
           <div className="p-16 pt-24 grid grid-cols-12 gap-16">
-            <div className="col-span-8">
-              <section className="mb-12">
-                <h3 className="text-xl font-black text-indigo-900 mb-6">
-                  {headers.experience}
-                </h3>
-                <div className="space-y-10">
-                  {experiences.map((exp: any, i: number) => (
-                    <div key={i} className="relative pl-8">
-                      <div className="absolute left-0 top-2 w-1.5 h-1.5 bg-indigo-600 rounded-full"></div>
-                      <div className="flex justify-between items-baseline mb-2">
-                        <h4 className="text-lg font-bold text-gray-900">
-                          {exp.title}
-                        </h4>
-                        <span className="text-xs font-bold text-indigo-600">
-                          {exp.period}
-                        </span>
-                      </div>
-                      <p className="text-sm font-black text-gray-400 uppercase mb-3">
-                        {exp.company}
-                      </p>
-                      <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                        {exp.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              {education.length > 0 && (
-                <section className="mb-12">
-                  <h3 className="text-xl font-black text-indigo-900 mb-6">
-                    {headers.education}
-                  </h3>
-                  <div className="space-y-8">
-                    {education.map((edu: any, i: number) => (
-                      <div key={i} className="relative pl-8">
-                        <div className="absolute left-0 top-2 w-1.5 h-1.5 bg-purple-600 rounded-full"></div>
-                        <h4 className="text-lg font-bold text-gray-900">
-                          {edu.degree}
-                        </h4>
-                        <p className="text-sm text-gray-400 font-bold uppercase">
-                          {edu.school} • {edu.year}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <ProjectsSection
+            <div className="col-span-8 flex flex-col gap-8">
+              <DynamicMainSections
                 headerClass="text-xl font-black text-indigo-900 mb-6"
-                itemClass="relative pl-8 mb-8"
-              />
-              <CustomSections
-                headerClass="text-xl font-black text-indigo-900 mb-6"
-                itemClass="text-sm text-gray-600"
+                itemClass="text-sm text-gray-600 leading-relaxed"
               />
             </div>
-            <div className="col-span-4 space-y-10">
-              <section className="bg-gray-50 p-8 rounded-3xl">
-                <h3 className="text-sm font-black uppercase text-gray-400 mb-4">
-                  {headers.summary}
-                </h3>
+            <div className="col-span-4 flex flex-col gap-10">
+              <div className="bg-gray-50 p-8 rounded-3xl">
+                <SectionTitle sectionKey="summary" className="text-sm font-black uppercase text-gray-400 mb-4" />
                 <p className="text-xs leading-relaxed text-gray-600 font-medium">
-                  {summaryText}
+                  <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
                 </p>
-              </section>
+              </div>
               <LanguagesSection
                 headerClass="text-sm font-black uppercase text-indigo-900 mb-6"
                 itemClass="text-xs"
               />
-              <section>
-                <h3 className="text-sm font-black uppercase text-indigo-900 mb-6">
-                  {headers.skills}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((s: string, i: number) => (
-                    <span
-                      key={i}
-                      className="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </section>
+              <SkillsSection
+                headerClass="text-sm font-black uppercase text-indigo-900 mb-6"
+                itemClass="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100"
+              />
             </div>
           </div>
         </div>
@@ -1026,98 +804,35 @@ export const CVRenderer = ({
       {/* --- STYLE: SOLAR --- */}
       {style === "Solar" && (
         <div className="p-10 font-sans text-slate-800">
-          <header className="mb-8 flex justify-between items-end border-b-8 border-amber-400 pb-6">
-            <div className="flex gap-8 items-end">
-              {data.photoUrl && (
-                <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-lg border-2 border-amber-100">
-                  <img
-                    src={data.photoUrl}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-              <div>
-                <h1 className="text-5xl font-black tracking-tight">{name}</h1>
-                <p className="text-xl font-bold text-amber-600 mt-2">{title}</p>
-              </div>
-            </div>
-            <div className="text-right text-xs font-black space-y-1 opacity-60 uppercase">
-              <p>{contact.location}</p>
-              <p>{contact.email}</p>
-              <p>{contact.phone}</p>
-              <ContactLinks className="" />
-            </div>
-          </header>
+          <IdentityHeader
+            nameClass="text-5xl font-black tracking-tight"
+            titleClass="text-xl font-bold text-amber-600 mt-2"
+            containerClass="mb-8 flex justify-between items-end border-b-8 border-amber-400 pb-6"
+            contactContainerClass="text-right text-xs font-black space-y-1 opacity-60 uppercase"
+            showIcons={false}
+          />
           <div className="grid grid-cols-2 gap-16">
-            <section className="space-y-8">
-              <h3 className="text-lg font-black uppercase border-b-2 border-slate-100 pb-2">
-                {headers.experience}
-              </h3>
-              {experiences.map((exp: any, i: number) => (
-                <div key={i} className="space-y-2">
-                  <p className="font-black text-slate-900">{exp.title}</p>
-                  <p className="text-xs font-bold text-amber-600">
-                    {exp.company} | {exp.period}
-                  </p>
-                  <p className="text-xs leading-relaxed text-slate-500 whitespace-pre-line">
-                    {exp.description}
-                  </p>
-                </div>
-              ))}
-              {education.length > 0 && (
-                <>
-                  <h3 className="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mt-8">
-                    {headers.education}
-                  </h3>
-                  {education.map((edu: any, i: number) => (
-                    <div key={i} className="space-y-1">
-                      <p className="font-black text-slate-900">{edu.degree}</p>
-                      <p className="text-xs font-bold text-slate-400">
-                        {edu.school} • {edu.year}
-                      </p>
-                    </div>
-                  ))}
-                </>
-              )}
-              <ProjectsSection
+            <section className="flex flex-col gap-8">
+              <DynamicMainSections
                 headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2"
-                itemClass="mb-6"
-              />
-              <CustomSections
-                headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2"
-                itemClass="text-xs text-slate-500"
+                itemClass="text-xs leading-relaxed text-slate-500"
               />
             </section>
-            <div className="space-y-12">
-              <section>
-                <h3 className="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-4">
-                  {headers.summary}
-                </h3>
+            <div className="flex flex-col gap-12">
+              <div className="border-b-2 border-slate-100 pb-2 mb-4">
+                <SectionTitle sectionKey="summary" className="text-lg font-black uppercase mb-4" />
                 <p className="text-sm leading-relaxed font-medium text-slate-600 italic">
-                  "{summaryText}"
+                  "<InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />"
                 </p>
-              </section>
+              </div>
               <LanguagesSection
                 headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6"
                 itemClass="text-sm font-bold text-slate-600"
               />
-              <section>
-                <h3 className="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6">
-                  {headers.skills}
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {skills.map((s: string, i: number) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-2 text-xs font-bold"
-                    >
-                      <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>{" "}
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <SkillsSection
+                headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6"
+                itemClass="flex items-center gap-2 text-xs font-bold"
+              />
             </div>
           </div>
         </div>
@@ -1128,109 +843,40 @@ export const CVRenderer = ({
         <div className="p-10 font-sans bg-white min-h-[297mm]">
           <div className="flex gap-12 mb-10">
             <div className="w-1/3 flex flex-col items-center text-center">
-              {data.photoUrl && (
-                <div className="w-32 h-32 rounded-[2.5rem] overflow-hidden mb-6 shadow-2xl">
-                  <img
-                    src={data.photoUrl}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
               <h1 className="text-3xl font-black text-rose-500 leading-tight mb-4">
-                {name}
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
               </h1>
               <div className="h-2 w-12 bg-rose-500 mb-6"></div>
               <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-                {title}
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
               </p>
             </div>
             <div className="w-2/3 pt-4">
               <p className="text-sm leading-relaxed text-gray-600 font-medium border-l-2 border-rose-100 pl-8 italic">
-                {summaryText}
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
               </p>
             </div>
           </div>
           <div className="grid grid-cols-12 gap-12">
-            <div className="col-span-8">
-              <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-8">
-                {headers.experience}
-              </h3>
-              <div className="space-y-12">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i}>
-                    <div className="flex justify-between items-baseline mb-3">
-                      <h4 className="text-xl font-bold">{exp.title}</h4>
-                      <span className="text-[10px] font-black text-rose-300 uppercase">
-                        {exp.period}
-                      </span>
-                    </div>
-                    <p className="text-xs font-black text-gray-400 uppercase mb-4">
-                      {exp.company}
-                    </p>
-                    <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-line">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              {education.length > 0 && (
-                <section className="mt-12">
-                  <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-8">
-                    {headers.education}
-                  </h3>
-                  <div className="space-y-8">
-                    {education.map((edu: any, i: number) => (
-                      <div key={i}>
-                        <h4 className="text-lg font-bold">{edu.degree}</h4>
-                        <p className="text-xs text-gray-400 font-bold">
-                          {edu.school} • {edu.year}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <ProjectsSection
+            <div className="col-span-8 flex flex-col gap-8">
+              <DynamicMainSections
                 headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mt-12 mb-8"
-                itemClass="mb-8"
-              />
-              <CustomSections
-                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mt-12 mb-8"
-                itemClass="text-sm text-gray-500"
+                itemClass="text-sm text-gray-500 leading-relaxed"
               />
             </div>
-            <div className="col-span-4 space-y-12">
-              <section>
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6">
-                  {headers.contact}
-                </h3>
-                <div className="space-y-4 text-xs font-bold text-gray-500">
-                  {contact.location && <p>{contact.location}</p>}
-                  <p>{contact.email}</p>
-                  <p>{contact.phone}</p>
-                  <ContactLinks className="" />
-                </div>
-              </section>
+            <div className="col-span-4 flex flex-col gap-12">
+              <ContactSection
+                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6"
+                itemClass="text-xs font-bold text-gray-500"
+              />
               <LanguagesSection
                 headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6"
                 itemClass="text-xs"
               />
-              <section>
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6">
-                  {headers.skills}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((s: string, i: number) => (
-                    <span
-                      key={i}
-                      className="bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-[10px] font-bold"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </section>
+              <SkillsSection
+                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6"
+                itemClass="bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-[10px] font-bold"
+              />
             </div>
           </div>
         </div>
@@ -1239,121 +885,26 @@ export const CVRenderer = ({
       {/* --- STYLE: COSMOS --- */}
       {style === "Cosmos" && (
         <div className="font-sans min-h-[297mm] text-slate-900">
-          <header className="bg-slate-900 text-white p-12 flex justify-between items-center">
-            <div className="flex gap-10 items-center">
-              {data.photoUrl && (
-                <div className="w-32 h-32 rounded-3xl overflow-hidden border-2 border-slate-700">
-                  <img
-                    src={data.photoUrl}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-              <div>
-                <h1 className="text-5xl font-black tracking-tighter mb-2">
-                  {name}
-                </h1>
-                <p className="text-xl font-bold text-slate-400 uppercase tracking-widest">
-                  {title}
-                </p>
-              </div>
-            </div>
-            <div className="text-right text-sm space-y-1 font-medium opacity-80">
-              {contact.location && <p>{contact.location}</p>}
-              <p>{contact.email}</p>
-              <p>{contact.phone}</p>
-              <ContactLinks className="" />
-            </div>
-          </header>
-          <div className="p-20 space-y-16">
-            <section className="flex gap-16">
-              <div className="w-1/4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">
-                  {headers.summary}
-                </h3>
-              </div>
-              <div className="w-3/4">
-                <p className="text-lg leading-relaxed text-slate-600 font-medium border-l-4 border-slate-900 pl-8">
-                  {summaryText}
-                </p>
-              </div>
-            </section>
-            <section className="flex gap-16">
-              <div className="w-1/4">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">
-                  {headers.experience}
-                </h3>
-              </div>
-              <div className="w-3/4 space-y-12">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i}>
-                    <div className="flex justify-between items-baseline mb-2">
-                      <h4 className="text-2xl font-black">{exp.title}</h4>
-                      <span className="text-sm font-bold text-slate-400">
-                        {exp.period}
-                      </span>
-                    </div>
-                    <p className="text-sm font-black text-slate-500 uppercase mb-4">
-                      {exp.company}
-                    </p>
-                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {education.length > 0 && (
-              <section className="flex gap-16">
-                <div className="w-1/4">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">
-                    {headers.education}
-                  </h3>
-                </div>
-                <div className="w-3/4 space-y-8">
-                  {education.map((edu: any, i: number) => (
-                    <div key={i}>
-                      <h4 className="text-2xl font-black">{edu.degree}</h4>
-                      <p className="text-sm font-bold text-slate-400 uppercase">
-                        {edu.school} • {edu.year}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <ProjectsSection
-              headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-8"
-              itemClass="mb-8"
-            />
-            <CustomSections
-              headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-8"
-              itemClass="text-sm text-slate-600"
+          <IdentityHeader
+            nameClass="text-5xl font-black tracking-tighter mb-2 text-white"
+            titleClass="text-xl font-bold text-slate-400 uppercase tracking-widest text-white"
+            containerClass="bg-slate-900 text-white p-12 flex justify-between items-center"
+            contactContainerClass="text-right text-sm space-y-1 font-medium opacity-80 text-white"
+            showIcons={false}
+          />
+          <div className="p-20 flex flex-col gap-16">
+            <DynamicMainSections
+              headerClass="text-sm font-black uppercase tracking-widest text-slate-400"
+              itemClass="text-sm leading-relaxed text-slate-600"
             />
             <LanguagesSection
               headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-4"
               itemClass="text-sm"
             />
-            {skills.length > 0 && (
-              <section className="flex gap-16">
-                <div className="w-1/4">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">
-                    {headers.skills}
-                  </h3>
-                </div>
-                <div className="w-3/4 flex flex-wrap gap-3">
-                  {skills.map((s: string, i: number) => (
-                    <span
-                      key={i}
-                      className="bg-slate-100 px-3 py-1 font-bold text-xs rounded-full"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
+            <SkillsSection
+              headerClass="text-sm font-black uppercase tracking-widest text-slate-400"
+              itemClass="bg-slate-100 px-3 py-1 font-bold text-xs rounded-full"
+            />
           </div>
         </div>
       )}
@@ -1362,83 +913,32 @@ export const CVRenderer = ({
       {style === "Astra" && (
         <div className="p-12 font-serif bg-white text-[#1a1a1a]">
           <header className="text-center mb-10">
-            <h1 className="text-4xl font-bold mb-2 tracking-tight">{name}</h1>
-            <p className="text-lg text-gray-600 italic mb-4">{title}</p>
+            <h1 className="text-4xl font-bold mb-2 tracking-tight"><InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} /></h1>
+            <p className="text-lg text-gray-600 italic mb-4"><InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
+            {headers.contact && (
+            <DraggableSection id="contact" isInteractive={isInteractive} onDelete={onDeleteSection}>
             <div className="flex justify-center gap-6 text-xs text-gray-500 border-y border-gray-100 py-3">
-              {contact.location && <span>{contact.location} • </span>}
-              <span>{contact.phone}</span>
+              {contact.location && <span><InlineEdit value={contact.location} path="contact.location" isInteractive={isInteractive} onUpdate={onUpdate} /> • </span>}
+              <span><InlineEdit value={contact.phone} path="contact.phone" isInteractive={isInteractive} onUpdate={onUpdate} /></span>
               <span>•</span>
-              <span>{contact.email}</span>
+              <span><InlineEdit value={contact.email} path="contact.email" isInteractive={isInteractive} onUpdate={onUpdate} /></span>
             </div>
             <ContactLinks className="text-xs text-gray-500 mt-2" />
+            </DraggableSection>
+            )}
           </header>
-          <div className="space-y-10 font-sans">
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4">
-                {headers.summary}
-              </h3>
-              <p className="text-sm leading-relaxed text-gray-700">
-                {summaryText}
-              </p>
-            </section>
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6">
-                {headers.experience}
-              </h3>
-              <div className="space-y-8">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i}>
-                    <div className="flex justify-between font-bold text-sm mb-1">
-                      <span>{exp.title}</span>
-                      <span>{exp.period}</span>
-                    </div>
-                    <p className="text-xs font-bold text-gray-600 mb-3">
-                      {exp.company}
-                    </p>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {education.length > 0 && (
-              <section>
-                <h3 className="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6">
-                  {headers.education}
-                </h3>
-                <div className="space-y-6">
-                  {education.map((edu: any, i: number) => (
-                    <div key={i}>
-                      <div className="flex justify-between font-bold text-sm mb-1">
-                        <span>{edu.degree}</span>
-                        <span>{edu.year}</span>
-                      </div>
-                      <p className="text-xs text-gray-600">{edu.school}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <ProjectsSection
+          <div className="flex flex-col gap-10 font-sans">
+            <DynamicMainSections
               headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6"
-              itemClass="mb-6"
+              itemClass="text-sm text-gray-700 leading-relaxed"
             />
-            <CustomSections
-              headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6"
-              itemClass="text-sm text-gray-700"
-            />
-            {skills.length > 0 && (
-              <section>
-                <h3 className="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4">
-                  {headers.skills}
-                </h3>
-                <p className="text-sm text-gray-700">{skills.join(" • ")}</p>
-              </section>
-            )}
             <LanguagesSection
               headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4"
               itemClass="text-sm"
+            />
+            <SkillsSection
+              headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4"
+              itemClass="text-sm text-gray-700"
             />
           </div>
         </div>
@@ -1447,97 +947,31 @@ export const CVRenderer = ({
       {/* --- STYLE: EUROPASS --- */}
       {style === "Europass" && (
         <div className="flex min-h-[297mm] font-sans text-slate-800">
-          <div className="w-[32%] bg-[#0065a2] text-white p-8 flex flex-col gap-10">
-            <div className="space-y-2 text-[11px] font-medium">
-              {contact.location && (
-                <p>
-                  <strong>Loc:</strong> {contact.location}
-                </p>
-              )}
-              <p>
-                <strong>Tel:</strong> {contact.phone}
-              </p>
-              <p>
-                <strong>Email:</strong> {contact.email}
-              </p>
-              <ContactLinks className="" />
-            </div>
+          <div className="cv-readable-sidebar w-[32%] bg-[#0065a2] text-white p-8 flex flex-col gap-10">
+            <ContactSection
+              headerClass="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2"
+              itemClass="text-[11px] font-medium text-white"
+            />
             <LanguagesSection
               headerClass="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px]"
+              itemClass="text-[11px] text-white"
             />
-            <section className="space-y-6">
-              <h3 className="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2">
-                {headers.skills}
-              </h3>
-              <div className="space-y-4">
-                {skills.map((s: string, i: number) => (
-                  <div key={i} className="text-[11px] flex items-start gap-2">
-                    <span className="mt-1.5 w-1.5 h-1.5 bg-white rounded-full shrink-0"></span>
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <SkillsSection
+              headerClass="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2"
+              itemClass="text-[11px] flex items-start gap-2 text-white"
+              layout="list"
+            />
           </div>
-          <div className="flex-1 p-12 space-y-12">
+          <div className="flex-1 p-12 flex flex-col gap-12">
             <header className="border-b-2 border-slate-100 pb-8">
               <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase mb-1">
-                {name}
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
               </h1>
               <p className="text-lg font-bold text-[#0065a2] uppercase tracking-widest">
-                {title}
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
               </p>
             </header>
-            <section>
-              <h3 className="text-[14px] font-black uppercase tracking-widest text-slate-900 bg-slate-50 px-4 py-2 border-l-4 border-[#0065a2] mb-6">
-                Expérience
-              </h3>
-              <div className="space-y-10 px-4">
-                {experiences.map((exp: any, i: number) => (
-                  <div key={i}>
-                    <div className="flex justify-between items-baseline mb-2">
-                      <h4 className="text-[13px] font-black text-slate-900 uppercase">
-                        {exp.title}
-                      </h4>
-                      <span className="text-[10px] font-black text-slate-400 shrink-0 ml-4">
-                        {exp.period}
-                      </span>
-                    </div>
-                    <p className="text-[11px] font-black text-[#0065a2] uppercase mb-3">
-                      {exp.company}
-                    </p>
-                    <p className="text-[12px] text-slate-600 leading-relaxed whitespace-pre-line border-l-2 border-slate-100 pl-4">
-                      {exp.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            {education.length > 0 && (
-              <section>
-                <h3 className="text-[14px] font-black uppercase tracking-widest text-slate-900 bg-slate-50 px-4 py-2 border-l-4 border-[#0065a2] mb-6">
-                  {headers.education}
-                </h3>
-                <div className="space-y-8 px-4">
-                  {education.map((edu: any, i: number) => (
-                    <div key={i}>
-                      <h4 className="text-[13px] font-black text-slate-900 uppercase">
-                        {edu.degree}
-                      </h4>
-                      <p className="text-[11px] font-black text-[#0065a2] uppercase">
-                        {edu.school} • {edu.year}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <ProjectsSection
-              headerClass="text-[14px] font-black uppercase tracking-widest text-slate-900 bg-slate-50 px-4 py-2 border-l-4 border-[#0065a2] mb-6"
-              itemClass="px-4 mb-6"
-            />
-            <CustomSections
+            <DynamicMainSections
               headerClass="text-[14px] font-black uppercase tracking-widest text-slate-900 bg-slate-50 px-4 py-2 border-l-4 border-[#0065a2] mb-6"
               itemClass="px-4 text-[12px] text-slate-600"
             />

@@ -1,14 +1,30 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, react-hooks/immutability, react/no-unescaped-entities */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { deductCreditForAnalysis } from "@/app/actions/analysis";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  TouchSensor,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import PaywallModal from "./PaywallModal";
 import {
   Lock,
   Download,
   Sparkles,
-  Edit3,
   X,
   Save,
   Plus,
@@ -19,9 +35,15 @@ import {
   ChevronLeft,
   Eye,
   Pencil,
+  MoreVertical,
+  Layers,
+  Monitor,
+  Target,
+  CreditCard,
 } from "lucide-react";
 import CVRenderer from "./CVRenderer";
 import OuiCVLoader from "../common/OuiCVLoader";
+import Image from "next/image";
 
 interface Template {
   id: string;
@@ -29,13 +51,17 @@ interface Template {
   templateStyle: string;
   templateData?: any;
   pdfUrl?: string;
+  isPaid: boolean;
 }
 
 interface TemplateGridProps {
   templates: Template[];
   isPaid: boolean;
+  userCredits: number;
+  isExpired?: boolean;
   analysisId: string;
   analysisData?: any;
+  initialTemplate?: number;
 }
 
 // ── Shared styles & constants ──────────────────────────────────────────────────
@@ -54,7 +80,6 @@ const DEFAULT_HEADERS: Record<string, string> = {
   projects: "Projets",
   skills: "Compétences",
   languages: "Langues",
-  interests: "Intérêts",
   contact: "Contact",
   certifications: "Certifications",
 };
@@ -95,7 +120,7 @@ const SectionHeader = ({
 }: SectionHeaderProps) => {
   const val = editingData?.headers?.[sectionKey] ?? DEFAULT_HEADERS[sectionKey] ?? sectionKey;
   const isConfirming = confirmingDelete === sectionKey;
-  
+
   return (
     <div className="flex items-center gap-3 mb-4">
       <div className="relative flex-1 group/header">
@@ -108,22 +133,22 @@ const SectionHeader = ({
         />
         {isConfirming && (
           <div className="absolute -right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 animate-in slide-in-from-left-2 z-20 translate-x-full pl-2">
-             <button 
+            <button
               onClick={() => deleteSection(sectionKey)}
               className="bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg hover:bg-red-600 whitespace-nowrap"
-             >
-               Confirmer ?
-             </button>
-             <button 
+            >
+              Confirmer ?
+            </button>
+            <button
               onClick={() => setConfirmingDelete(null)}
               className="bg-slate-100 text-slate-400 p-1 rounded-lg hover:bg-slate-200"
-             >
-               <X size={12} />
-             </button>
+            >
+              <X size={12} />
+            </button>
           </div>
         )}
       </div>
-      
+
       <div className="flex items-center gap-2">
         {!onAdd && !isConfirming && (
           <button
@@ -135,32 +160,33 @@ const SectionHeader = ({
           </button>
         )}
       </div>
-        {onAdd && (
-          <div className="flex items-center gap-2">
-            {!isConfirming && (
-              <button
-                onClick={() => setConfirmingDelete(sectionKey)}
-                className="p-2 text-slate-300 hover:text-red-500 transition-all"
-                title="Supprimer la section"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
+      {onAdd && (
+        <div className="flex items-center gap-2">
+          {!isConfirming && (
             <button
-              onClick={onAdd}
-              className="px-3 py-2 bg-primary/10 text-primary rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-primary/20 transition-all flex items-center gap-1 shrink-0"
+              onClick={() => setConfirmingDelete(sectionKey)}
+              className="p-2 text-slate-300 hover:text-red-500 transition-all"
+              title="Supprimer la section"
             >
-              <Plus size={12} /> {addLabel}
+              <Trash2 size={16} />
             </button>
-          </div>
-        )}
-      </div>
+          )}
+          <button
+            onClick={onAdd}
+            className="px-3 py-2 bg-primary/10 text-primary rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-primary/20 transition-all flex items-center gap-1 shrink-0"
+          >
+            <Plus size={12} /> {addLabel}
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 
 interface EditorContentProps {
   editingData: any;
   update: (path: string, value: any) => void;
+  updateTopLevel: (key: string, value: any) => void;
   updateArr: (section: string, idx: number, field: string, value: any) => void;
   addArr: (section: string, item: object) => void;
   removeArr: (section: string, idx: number) => void;
@@ -177,11 +203,13 @@ interface EditorContentProps {
   deleteSection: (key: string) => void;
   newSectionName: string;
   setNewSectionName: (val: string) => void;
+  analysisData: any;
 }
 
 const EditorContent = ({
   editingData,
   update,
+  updateTopLevel,
   updateArr,
   addArr,
   removeArr,
@@ -197,26 +225,34 @@ const EditorContent = ({
   setConfirmingDelete,
   deleteSection,
   newSectionName,
-  setNewSectionName
+  setNewSectionName,
+  analysisData
 }: EditorContentProps) => (
-  <div className="pb-32">
-    <div className="p-6 md:p-8 bg-white border-b border-slate-100">
+  <div className="flex flex-col h-full overflow-hidden">
+    <div className="p-6 md:p-8 bg-white border-b border-slate-100 shrink-0">
       <h3 className="text-xl font-black text-slate-900">Modifier le CV</h3>
       <p className="text-xs text-slate-400 font-medium mt-1">Personnalisez chaque section en temps réel.</p>
     </div>
 
-    <div className="space-y-1">
+    <div className="flex-1 overflow-y-auto space-y-1 bg-slate-50/30">
       {/* Identity */}
       <div className={`p-6 md:p-8 ${sectionColors.identity}`}>
         <label className={labelCls}>Photo de profil</label>
         <div className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm mb-6">
           {editingData?.photoUrl ? (
             <div className="relative group">
-              <img
+              {/* <img
                 src={editingData.photoUrl}
                 alt="Profil"
                 className="w-20 h-20 rounded-xl object-cover"
-              />
+              /> */}
+              <Image
+  src={editingData.photoUrl}
+  alt="Profil"
+  width={80}
+  height={80}
+  className="w-20 h-20 rounded-xl object-cover"
+/>
               <button
                 onClick={() => update("photoUrl", "")}
                 className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg transition-transform hover:scale-110"
@@ -278,13 +314,13 @@ const EditorContent = ({
 
       {editingData?.headers?.summary !== undefined && (
         <div className={`p-6 md:p-8 border-t border-slate-100 ${sectionColors.summary}`}>
-          <SectionHeader 
-            sectionKey="summary" 
-            editingData={editingData} 
-            update={update} 
-            confirmingDelete={confirmingDelete} 
-            setConfirmingDelete={setConfirmingDelete} 
-            deleteSection={deleteSection} 
+          <SectionHeader
+            sectionKey="summary"
+            editingData={editingData}
+            update={update}
+            confirmingDelete={confirmingDelete}
+            setConfirmingDelete={setConfirmingDelete}
+            deleteSection={deleteSection}
           />
           <textarea
             className={textareaCls}
@@ -298,8 +334,8 @@ const EditorContent = ({
 
       {editingData?.headers?.contact !== undefined && (
         <div className={`p-6 md:p-8 border-t border-slate-100 ${sectionColors.contact}`}>
-          <SectionHeader 
-            sectionKey="contact" 
+          <SectionHeader
+            sectionKey="contact"
             onAdd={(!hasLinkedin || !hasGithub || !hasPortfolio) ? addNextContact : undefined}
             addLabel="Lien"
             editingData={editingData}
@@ -577,7 +613,7 @@ const EditorContent = ({
         <div key={key} className={`p-6 md:p-8 border-t border-slate-100 bg-slate-50/20`}>
           <SectionHeader
             sectionKey={key}
-            onAdd={Array.isArray(editingData[key]) ? () => update(key, [...(editingData[key] || []), ""]) : undefined}
+            onAdd={Array.isArray(editingData[key]) ? () => updateTopLevel(key, [...(editingData[key] || []), ""]) : undefined}
             editingData={editingData}
             update={update}
             confirmingDelete={confirmingDelete}
@@ -586,90 +622,120 @@ const EditorContent = ({
           />
           {Array.isArray(editingData[key]) ? (
             <div className="flex flex-wrap gap-2.5 p-4 bg-white/50 rounded-2xl border border-slate-200">
-               {editingData[key].map((item: string, idx: number) => (
-                 <div key={idx} className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
-                    <input
-                      value={item}
-                      onChange={(e) => {
-                        const arr = [...editingData[key]];
-                        arr[idx] = e.target.value;
-                        update(key, arr);
-                      }}
-                      className="text-sm font-medium outline-none w-24 bg-transparent"
-                    />
-                    <button
-                      onClick={() => update(key, editingData[key].filter((_: any, i: number) => i !== idx))}
-                      className="text-slate-300 hover:text-red-500 transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                 </div>
-               ))}
+              {editingData[key].map((item: string, idx: number) => (
+                <div key={idx} className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
+                  <input
+                    value={item}
+                    onChange={(e) => {
+                      const arr = [...editingData[key]];
+                      arr[idx] = e.target.value;
+                      updateTopLevel(key, arr);
+                    }}
+                    className="text-sm font-medium outline-none w-24 bg-transparent"
+                  />
+                  <button
+                    onClick={() => updateTopLevel(key, editingData[key].filter((_: any, i: number) => i !== idx))}
+                    className="text-slate-300 hover:text-red-500 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
             </div>
           ) : (
             <textarea
               className={textareaCls}
               rows={4}
               value={editingData[key] || ""}
-              onChange={(e) => update(key, e.target.value)}
+              onChange={(e) => updateTopLevel(key, e.target.value)}
             />
           )}
         </div>
       ))}
     </div>
 
-    {/* Footer actions */}
-    <div className="sticky bottom-0 pt-4 pb-2 bg-white/95 backdrop-blur-sm">
-      <div className="flex flex-col gap-2">
-         <div className="w-full flex flex-col gap-2 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
-           <div className="flex items-center gap-2">
-             <Plus size={14} className="text-slate-400" />
-             <input 
-               placeholder="Nom de la section (ex: Loisirs)" 
-               className="bg-transparent text-xs font-black uppercase tracking-widest outline-none flex-1 text-slate-700"
-               value={newSectionName}
-               onChange={(e) => setNewSectionName(e.target.value)}
-             />
-             <button 
-               onClick={() => {
-                 if (newSectionName) {
-                   addCustomSection(newSectionName);
-                   setNewSectionName("");
-                 }
-               }}
-               className="bg-primary text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase"
-             >
-               Ajouter
-             </button>
-           </div>
-         </div>
-
-         <button
-           onClick={handleSave}
-           disabled={saveStatus === "saving"}
-           className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-             saveStatus === "saved"
-               ? "bg-emerald-600 text-white"
-               : saveStatus === "error"
-                 ? "bg-red-500 text-white"
-                 : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-lg shadow-emerald-500/20"
-           }`}
-         >
-           {saveStatus === "saving" && (
-             <OuiCVLoader size="sm" className="opacity-80" />
-           )}
-           {saveStatus === "saved" && <CheckCircle2 size={16} />}
-           {saveStatus === "error" && <AlertCircle size={16} />}
-           {saveStatus === "idle" && <Save size={16} />}
-           {saveStatus === "saving"
-             ? "Enregistrement..."
-             : saveStatus === "saved"
-               ? "Enregistré !"
-               : saveStatus === "error"
-                 ? "Erreur — réessayer"
-                 : "Enregistrer les modifications"}
-         </button>
+    {/* Fixed Bottom Panel (Save + ATS results) */}
+    <div className="h-[260px] md:h-[300px] bg-white border-t border-slate-200 overflow-y-auto p-4 md:p-6 shrink-0 z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] scrollbar-hide">
+      <div className="w-full flex flex-col gap-2 p-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mb-4">
+        <div className="flex items-center gap-2">
+          <Plus size={12} className="text-slate-400" />
+          <input
+            placeholder="Nom de la section (ex: Loisirs)"
+            className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none flex-1 text-slate-700"
+            value={newSectionName}
+            onChange={(e) => setNewSectionName(e.target.value)}
+          />
+          <button
+            onClick={() => {
+              if (newSectionName) {
+                addCustomSection(newSectionName);
+                setNewSectionName("");
+              }
+            }}
+            className="bg-primary text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase"
+          >
+            Ajouter
+          </button>
+        </div>
       </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saveStatus === "saving"}
+        className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 mb-6 ${saveStatus === "saved"
+          ? "bg-emerald-600 text-white"
+          : saveStatus === "error"
+            ? "bg-red-500 text-white"
+            : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-lg shadow-emerald-500/20"
+          }`}
+      >
+        {saveStatus === "saving" && (
+          <OuiCVLoader size="sm" className="opacity-80" />
+        )}
+        {saveStatus === "saved" && <CheckCircle2 size={16} />}
+        {saveStatus === "error" && <AlertCircle size={16} />}
+        {saveStatus === "idle" && <Save size={14} />}
+        {saveStatus === "saving"
+          ? "Enregistrement..."
+          : saveStatus === "saved"
+            ? "Enregistré !"
+            : saveStatus === "error"
+              ? "Erreur — réessayer"
+              : "Enregistrer les modifications"}
+      </button>
+
+      {/* ATS Data Panel - Strictly below Save button and separate from Editor scroll */}
+      {analysisData && (
+        <div className="pt-6 border-t border-slate-100 bg-white space-y-5 pb-6">
+          <div className="flex items-center gap-2">
+            <Target size={14} className="text-primary shrink-0" />
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-700">Données ATS — Optimisez votre CV</h4>
+          </div>
+          {analysisData.keywordsMissing && (analysisData.keywordsMissing as string[]).length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-2">Mots-clés manquants</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(analysisData.keywordsMissing as string[]).map((kw: string, i: number) => (
+                  <span key={i} className="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-lg text-[11px] font-bold">{kw}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {analysisData.suggestions && (analysisData.suggestions as string[]).length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Suggestions d'amélioration</p>
+              <ul className="space-y-2">
+                {(analysisData.suggestions as string[]).slice(0, 5).map((s: string, i: number) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-slate-600 font-medium">
+                    <span className="w-4 h-4 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black">{i + 1}</span>
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   </div>
 );
@@ -678,15 +744,17 @@ const EditorContent = ({
 
 export default function TemplateGrid({
   templates: initialTemplates,
-  isPaid,
+  userCredits: initialUserCredits,
+  isExpired = false,
   analysisId,
   analysisData,
+  initialTemplate,
 }: TemplateGridProps) {
-  const { isLoaded } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const [templates, setTemplates] = useState(initialTemplates);
+  const [userCredits, setUserCredits] = useState(initialUserCredits);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [editingData, setEditingData] = useState<any>(null);
@@ -696,8 +764,15 @@ export default function TemplateGrid({
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [newSectionName, setNewSectionName] = useState("");
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [forceDesktopPreview, setForceDesktopPreview] = useState(false);
+  const [previewScale, setPreviewScale] = useState(1);
 
   const editingDataRef = useRef<any>(null);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     editingDataRef.current = editingData;
@@ -708,24 +783,200 @@ export default function TemplateGrid({
   }, [initialTemplates]);
 
   useEffect(() => {
+    setUserCredits(initialUserCredits);
+  }, [initialUserCredits]);
+
+  useEffect(() => {
     if (searchParams.get("payment") === "success" && !hasRefreshed) {
       setHasRefreshed(true);
       router.refresh();
     }
   }, [searchParams, router, hasRefreshed]);
 
-  const hasPaid = isPaid || searchParams.get("payment") === "success";
+  // Auto-select initial template from URL param
+  useEffect(() => {
+    if (initialTemplate && initialTemplates.length > 0 && !selectedTemplate) {
+      const tpl = initialTemplates.find(t => t.templateNumber === initialTemplate) || initialTemplates[0];
+      if (tpl) handleSelectById(tpl.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTemplates]);
 
-  const handleSelect = (id: string) => {
-    const template = templates.find((t) => String(t.id) === String(id));
+  // Success banner after payment
+  useEffect(() => {
+    if (searchParams.get("payment") === "success") {
+      setShowSuccessBanner(true);
+      setTimeout(() => setShowSuccessBanner(false), 5000);
+    }
+  }, [searchParams]);
+
+  const analysisIsPaid = templates.some((t) => t.isPaid);
+
+  // Logic for "has access without immediate deduction"
+  const isJustPaid = searchParams.get("payment") === "success";
+  const hasPaid = analysisIsPaid || isJustPaid;
+
+  const handleSelectById = async (id: string) => {
+    const template = initialTemplates.find((t) => String(t.id) === String(id));
     if (!template) return;
+
+    if (isExpired && !analysisIsPaid) {
+      alert("Votre plan a expiré. Veuillez renouveler votre plan pour continuer à éditer vos CVs.");
+      setShowPaywall(true);
+      return;
+    }
+
+    // Credit Deduction Logic:
+    // 1. If analysis already paid -> Skip
+    // 2. If just paid (from Stripe) -> Skip (Wait for Download)
+    // 3. If new analysis + user has credits -> Deduct on Edit
+    if (!analysisIsPaid && userCredits > 0 && !isJustPaid) {
+      try {
+        const res = await deductCreditForAnalysis(analysisId);
+        if (res.success) {
+          setUserCredits(prev => prev - 1);
+          setTemplates(prev => prev.map(t => ({ ...t, isPaid: true })));
+          router.refresh();
+        }
+      } catch (err: any) {
+        if (err.message.includes("EXPIRED:")) {
+          alert(err.message.replace("EXPIRED: ", ""));
+        } else {
+          console.error("Credit deduction failed", err);
+        }
+        return;
+      }
+    }
+
     const data = JSON.parse(JSON.stringify(template.templateData || {}));
     if (!data.contact) data.contact = { email: "", phone: "", location: "" };
-    data.headers = { ...DEFAULT_HEADERS, ...(data.headers || {}) };
+    const headerKeys = data.headers ? Object.keys(data.headers) : Object.keys(DEFAULT_HEADERS);
+    data.headers = headerKeys.reduce((acc: Record<string, string>, key: string) => {
+      acc[key] = data.headers?.[key] ?? DEFAULT_HEADERS[key] ?? key;
+      return acc;
+    }, {});
+
+    // Ensure array fields are initialized as arrays if they exist but are not arrays, or if they don't exist
+    if (!Array.isArray(data.languages)) data.languages = [];
+    if (!Array.isArray(data.skills)) data.skills = [];
+    if (!Array.isArray(data.experience)) data.experience = [];
+    if (!Array.isArray(data.education)) data.education = [];
+    if (!Array.isArray(data.projects)) data.projects = [];
+    // Initialize section order if missing
+    if (!data.sectionOrder) {
+      data.sectionOrder = Object.keys(data.headers).filter(k => k !== 'photoUrl' && k !== 'userName' && k !== 'jobTitle');
+    } else {
+      data.sectionOrder = Array.from(new Set(data.sectionOrder));
+    }
+
     setSelectedTemplate(id);
     setEditingData(data);
     setSaveStatus("idle");
     setMobileView("edit");
+    setForceDesktopPreview(false);
+  };
+
+  const handleSelect = async (id: string) => {
+    const template = templates.find((t) => String(t.id) === String(id));
+    if (!template) return;
+
+    if (isExpired && !analysisIsPaid) {
+      alert("Votre plan a expiré. Veuillez renouveler votre plan pour continuer à éditer vos CVs.");
+      setShowPaywall(true);
+      return;
+    }
+
+    if (!analysisIsPaid && userCredits > 0 && !isJustPaid) {
+      try {
+        const res = await deductCreditForAnalysis(analysisId);
+        if (res.success) {
+          setUserCredits(prev => prev - 1);
+          setTemplates(prev => prev.map(t => ({ ...t, isPaid: true })));
+          router.refresh();
+        }
+      } catch (err: any) {
+        if (err.message.includes("EXPIRED:")) {
+          alert(err.message.replace("EXPIRED: ", ""));
+        } else {
+          console.error("Credit deduction failed", err);
+        }
+        return;
+      }
+    }
+
+    const data = JSON.parse(JSON.stringify(template.templateData || {}));
+    if (!data.contact) data.contact = { email: "", phone: "", location: "" };
+    const headerKeys = data.headers ? Object.keys(data.headers) : Object.keys(DEFAULT_HEADERS);
+    data.headers = headerKeys.reduce((acc: Record<string, string>, key: string) => {
+      acc[key] = data.headers?.[key] ?? DEFAULT_HEADERS[key] ?? key;
+      return acc;
+    }, {});
+
+    // Ensure array fields are initialized as arrays if they exist but are not arrays, or if they don't exist
+    if (!Array.isArray(data.languages)) data.languages = [];
+    if (!Array.isArray(data.skills)) data.skills = [];
+    if (!Array.isArray(data.experience)) data.experience = [];
+    if (!Array.isArray(data.education)) data.education = [];
+    if (!Array.isArray(data.projects)) data.projects = [];
+    // Initialize section order if missing
+    if (!data.sectionOrder) {
+      data.sectionOrder = Object.keys(data.headers).filter(k => k !== 'photoUrl' && k !== 'userName' && k !== 'jobTitle');
+    } else {
+      data.sectionOrder = Array.from(new Set(data.sectionOrder));
+    }
+
+    setSelectedTemplate(id);
+    setEditingData(data);
+    setSaveStatus("idle");
+    setMobileView("edit");
+    setForceDesktopPreview(false);
+    setShowModelPicker(false);
+  };
+
+  const handleGenerateAI = async () => {
+    if (isExpired && !analysisIsPaid) {
+      alert("Votre plan a expiré. Veuillez renouveler votre plan pour continuer à profiter des avantages Pro.");
+      setShowPaywall(true);
+      return;
+    }
+    if (userCredits < 1 && !analysisIsPaid) { setShowPaywall(true); return; }
+    try {
+      setIsGeneratingAI(true);
+
+      // Deduct credit first if not already paid
+      if (!analysisIsPaid) {
+        try {
+          const creditRes = await deductCreditForAnalysis(analysisId);
+          if (creditRes.success) {
+            setUserCredits(prev => prev - 1);
+            setTemplates(prev => prev.map(t => ({ ...t, isPaid: true })));
+            router.refresh();
+          }
+        } catch (err: any) {
+          if (err.message.includes("EXPIRED:")) {
+            alert(err.message.replace("EXPIRED: ", ""));
+          } else {
+            alert(err.message);
+          }
+          return;
+        }
+      }
+
+      const res = await fetch("/api/generate-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysisId }),
+      });
+      if (!res.ok) throw new Error("Erreur lors de la génération IA");
+      const result = await res.json();
+      if (result.success) {
+        router.refresh();
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsGeneratingAI(false);
+    }
   };
 
   const persistEdits = async (data: any) => {
@@ -761,8 +1012,33 @@ export default function TemplateGrid({
   };
 
   const handleDownload = async (templateId: string) => {
+    if (isExpired && !analysisIsPaid) {
+      alert("Votre plan a expiré. Veuillez renouveler votre plan pour télécharger vos CVs sans filigrane.");
+      setShowPaywall(true);
+      return;
+    }
     try {
       setIsGenerating(templateId);
+
+      // Deduct credit if user has credits but analysis isn't paid yet
+      if (!analysisIsPaid && userCredits > 0) {
+        try {
+          const creditRes = await deductCreditForAnalysis(analysisId);
+          if (creditRes.success) {
+            setUserCredits(prev => prev - 1);
+            setTemplates(prev => prev.map(t => ({ ...t, isPaid: true })));
+            router.refresh();
+          }
+        } catch (err: any) {
+          if (err.message.includes("EXPIRED:")) {
+            alert(err.message.replace("EXPIRED: ", ""));
+          } else {
+            alert(err.message);
+          }
+          return;
+        }
+      }
+
       const currentData =
         selectedTemplate === templateId && editingDataRef.current
           ? editingDataRef.current
@@ -799,48 +1075,64 @@ export default function TemplateGrid({
     }
   };
 
-  const update = (path: string, value: any) => {
+  const update = useCallback((path: string, value: any) => {
     setEditingData((prev: any) => {
-      const next = { ...prev };
+      if (!prev) return prev;
       const keys = path.split(".");
-      let cur = next;
-      for (let i = 0; i < keys.length - 1; i++) {
-        cur[keys[i]] = { ...cur[keys[i]] };
-        cur = cur[keys[i]];
-      }
-      cur[keys[keys.length - 1]] = value;
-      return next;
-    });
-  };
 
-  const updateArr = (section: string, idx: number, field: string, value: any) => {
+      // Recursive shallow update to maintain referential integrity where possible
+      const updateNested = (obj: any, keysArray: string[]): any => {
+        const [head, ...tail] = keysArray;
+        if (!head) return obj;
+        if (tail.length === 0) {
+          if (obj[head] === value) return obj;
+          return { ...obj, [head]: value };
+        }
+        const nextSub = updateNested(obj[head] || {}, tail);
+        if (obj[head] === nextSub) return obj;
+        return { ...obj, [head]: nextSub };
+      };
+
+      return updateNested(prev, keys);
+    });
+  }, []);
+
+  const updateTopLevel = useCallback((key: string, value: any) => {
     setEditingData((prev: any) => {
+      if (!prev || prev[key] === value) return prev;
+      return { ...prev, [key]: value };
+    });
+  }, []);
+
+  const updateArr = useCallback((section: string, idx: number, field: string, value: any) => {
+    setEditingData((prev: any) => {
+      if (prev[section]?.[idx]?.[field] === value) return prev;
       const arr = [...(prev[section] || [])];
       arr[idx] = { ...arr[idx], [field]: value };
       return { ...prev, [section]: arr };
     });
-  };
+  }, []);
 
-  const addArr = (section: string, item: object) =>
+  const addArr = useCallback((section: string, item: object) =>
     setEditingData((prev: any) => ({
       ...prev,
       [section]: [...(prev[section] || []), { ...item }],
-    }));
+    })), []);
 
-  const removeArr = (section: string, idx: number) =>
+  const removeArr = useCallback((section: string, idx: number) =>
     setEditingData((prev: any) => ({
       ...prev,
       [section]: (prev[section] || []).filter((_: any, i: number) => i !== idx),
-    }));
+    })), []);
 
-  const delContact = (key: string) =>
+  const delContact = useCallback((key: string) =>
     setEditingData((prev: any) => {
       const c = { ...prev.contact };
       delete c[key];
       return { ...prev, contact: c };
-    });
+    }), []);
 
-  const deleteSection = (key: string) => {
+  const deleteSection = useCallback((key: string) => {
     setEditingData((prev: any) => {
       const next = { ...prev };
       delete next[key];
@@ -849,22 +1141,58 @@ export default function TemplateGrid({
         delete nextHeaders[key];
         next.headers = nextHeaders;
       }
+      // Remove from visual order
+      if (next.sectionOrder) {
+        next.sectionOrder = next.sectionOrder.filter((s: string) => s !== key);
+      }
       return next;
     });
     setConfirmingDelete(null);
-  };
+  }, []);
 
-  const addCustomSection = (sectionName: string) => {
+  const addCustomSection = useCallback((sectionName: string) => {
     if (!sectionName) return;
-    const key = sectionName.toLowerCase().replace(/\s+/g, '_');
-    setEditingData((prev: any) => ({
-      ...prev,
-      headers: { ...prev.headers, [key]: sectionName },
-      [key]: [] 
-    }));
-  };
+    const normalized = sectionName.trim().toLowerCase();
+    let key = normalized
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    if (!key) key = `section_${Date.now()}`;
+
+    // Smart mapping to standard keys to allow re-adding deleted sections
+    if (["profil", "résumé", "summary", "about", "bio"].includes(normalized)) key = "summary";
+    else if (["expérience", "expériences", "experience", "work"].includes(normalized)) key = "experience";
+    else if (["formation", "formations", "education", "études"].includes(normalized)) key = "education";
+    else if (["compétences", "skills", "aptitudes"].includes(normalized)) key = "skills";
+    else if (["langues", "languages"].includes(normalized)) key = "languages";
+    else if (["projets", "projects"].includes(normalized)) key = "projects";
+
+    const isListSection = ["skills", "languages"].includes(key);
+
+    setEditingData((prev: any) => {
+      const currentOrder = prev.sectionOrder || [];
+      // Prevent duplicate keys in sectionOrder which causes React render errors
+      if (currentOrder.includes(key)) return prev;
+
+      const nextHeaders = { ...prev.headers, [key]: sectionName };
+
+      return {
+        ...prev,
+        headers: nextHeaders,
+        [key]: isListSection ? (prev[key] || []) : (prev[key] || ""),
+        // Add new section to the end of the order
+        sectionOrder: [...currentOrder, key]
+      };
+    });
+  }, []);
 
   const selectedTpl = templates.find((t) => String(t.id) === String(selectedTemplate));
+  const memoizedTemplate = useMemo(() => {
+    if (!selectedTpl) return null;
+    return { ...selectedTpl, templateData: editingData };
+  }, [selectedTpl, editingData]);
+
   const hasLinkedin = editingData?.contact && "linkedin" in editingData.contact;
   const hasGithub = editingData?.contact && "github" in editingData.contact;
   const hasPortfolio = editingData?.contact && "portfolio" in editingData.contact;
@@ -875,50 +1203,128 @@ export default function TemplateGrid({
     if (!hasPortfolio) { update("contact.portfolio", ""); return; }
   };
 
+  // ── Drag & Drop Logic ──
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setEditingData((prev: any) => {
+        const oldIndex = prev.sectionOrder.indexOf(active.id);
+        const newIndex = prev.sectionOrder.indexOf(over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+        return {
+          ...prev,
+          sectionOrder: arrayMove(prev.sectionOrder, oldIndex, newIndex),
+        };
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const node = previewViewportRef.current;
+    if (!node || !selectedTemplate) return;
+
+    const updateMeasuredScale = () => {
+      const horizontalPadding = forceDesktopPreview ? 0 : 16;
+      const viewportWidth = window.visualViewport?.width || window.innerWidth || node.clientWidth;
+      const availableWidth = Math.max(240, Math.min(node.clientWidth, viewportWidth) - horizontalPadding);
+      setPreviewScale(forceDesktopPreview ? 1 : Math.min(1, availableWidth / 794));
+    };
+
+    updateMeasuredScale();
+    const observer = new ResizeObserver(updateMeasuredScale);
+    observer.observe(node);
+    window.visualViewport?.addEventListener("resize", updateMeasuredScale);
+    window.addEventListener("orientationchange", updateMeasuredScale);
+
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", updateMeasuredScale);
+      window.removeEventListener("orientationchange", updateMeasuredScale);
+    };
+  }, [forceDesktopPreview, selectedTemplate, mobileView]);
+
   return (
     <div>
+      {/* Payment Success Banner */}
+      {showSuccessBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-emerald-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4">
+          <CheckCircle2 size={20} />
+          <span className="font-black">Paiement réussi ! Votre CV est maintenant débloqué.</span>
+        </div>
+      )}
       {/* ── Template Grid ─────────────────────────────────────────── */}
       {!selectedTemplate && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {templates.map((template) => (
-            <div
-              key={template.id}
-              onClick={() => handleSelect(template.id)}
-              className="group bg-white rounded-3xl border border-slate-100 overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
-            >
-              <div className="relative bg-slate-50 overflow-hidden" style={{ height: 320 }}>
-                <div className={`absolute inset-0 flex justify-center items-start pt-6 ${!hasPaid ? "blur-sm" : ""}`}>
-                  <div className="scale-[0.38] origin-top transform-gpu">
-                    <CVRenderer template={template} isPaid={hasPaid} analysisData={analysisData} />
-                  </div>
-                </div>
-                {!hasPaid && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-white/90 backdrop-blur rounded-2xl px-4 py-2 flex items-center gap-2 shadow-lg">
-                      <Lock size={14} className="text-slate-400" />
-                      <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Verrouillé</span>
+        <div className="space-y-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">Choisissez un modèle</h2>
+              <p className="text-xs text-slate-400 font-medium">Tous les modèles sont optimisés par l'IA pour votre profil.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex items-center gap-2">
+                <CreditCard size={16} className="text-slate-400" />
+                <span className="text-sm font-black text-slate-700">{userCredits} Crédits</span>
+              </div>
+              {!analysisIsPaid && (
+                <button
+                  onClick={handleGenerateAI}
+                  disabled={isGeneratingAI}
+                  className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 disabled:opacity-60 shadow-lg shadow-purple-500/20"
+                >
+                  {isGeneratingAI ? <OuiCVLoader size="sm" /> : <Sparkles size={18} />}
+                  {isGeneratingAI ? "IA en cours..." : "Générer mon CV par IA"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {templates.map((template) => (
+              <div
+                key={template.id}
+                onClick={() => handleSelect(template.id)}
+                className="group bg-white rounded-3xl border border-slate-100 overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+              >
+                <div className="relative bg-slate-50 overflow-hidden" style={{ height: 320 }}>
+                  <div className={`absolute inset-0 flex justify-center items-start pt-6 ${!hasPaid ? "blur-sm" : ""}`}>
+                    <div className="scale-[0.38] origin-top transform-gpu">
+                      <CVRenderer template={template} isPaid={hasPaid} analysisData={analysisData} />
                     </div>
                   </div>
-                )}
-                <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors flex items-center justify-center">
-                  <span className="bg-white text-slate-900 px-6 py-3 rounded-2xl font-black text-sm opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all shadow-xl flex items-center gap-2">
-                    {hasPaid ? <><Pencil size={15} /> Éditer</> : <><Lock size={15} /> Débloquer</>}
-                  </span>
+                  {!hasPaid && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white/90 backdrop-blur rounded-2xl px-4 py-2 flex items-center gap-2 shadow-lg">
+                        <Lock size={14} className="text-slate-400" />
+                        <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Verrouillé</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors flex items-center justify-center">
+                    <span className="bg-white text-slate-900 px-6 py-3 rounded-2xl font-black text-sm opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all shadow-xl flex items-center gap-2">
+                      {hasPaid ? <><Pencil size={15} /> Éditer</> : <><Lock size={15} /> Débloquer</>}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-4 flex items-center justify-between border-t border-slate-100">
+                  <div>
+                    <p className="font-black text-slate-900">{template.templateStyle}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">IA Optimisé</p>
+                  </div>
+                  {hasPaid && (
+                    <button onClick={(e) => { e.stopPropagation(); handleDownload(template.id); }} disabled={isGenerating === template.id} className="w-9 h-9 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-colors">
+                      {isGenerating === template.id ? <OuiCVLoader size="sm" /> : <Download size={15} />}
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="p-4 flex items-center justify-between border-t border-slate-100">
-                <div>
-                  <p className="font-black text-slate-900">{template.templateStyle}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">IA Optimisé</p>
-                </div>
-                {hasPaid && (
-                  <button onClick={(e) => { e.stopPropagation(); handleDownload(template.id); }} disabled={isGenerating === template.id} className="w-9 h-9 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-colors">
-                    {isGenerating === template.id ? <OuiCVLoader size="sm" /> : <Download size={15} />}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -937,45 +1343,82 @@ export default function TemplateGrid({
             </div>
 
             <div className="hidden sm:flex items-center gap-3">
-              {hasPaid ? (
-                <button 
-                  onClick={() => handleDownload(selectedTpl.id)} 
-                  disabled={!!isGenerating} 
-                  className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all disabled:opacity-50 active:scale-95"
-                >
-                  {isGenerating ? <OuiCVLoader size="sm" /> : <Download size={16} />}
-                  {isGenerating ? "" : "Télécharger PDF"}
-                </button>
-              ) : (
-                <button onClick={() => setShowPaywall(true)} className="inline-flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl font-black text-sm transition-all hover:brightness-110 active:scale-95">
-                  <Lock size={16} /> Débloquer
-                </button>
-              )}
+              <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
+                <CreditCard size={14} className="text-slate-400" />
+                <span className="text-xs font-black text-slate-700">{userCredits} Crédits</span>
+              </div>
+              <button
+                onClick={() => setShowModelPicker(v => !v)}
+                className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-black text-sm transition-all active:scale-95"
+              >
+                <Layers size={16} /> Changer de modèle
+              </button>
+              <button
+                onClick={async () => {
+                  if (editingData) await handleSave();
+                  if (hasPaid) {
+                    handleDownload(selectedTpl.id);
+                  } else {
+                    setShowPaywall(true);
+                  }
+                }}
+                disabled={!!isGenerating}
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-5 py-2.5 rounded-xl font-black text-sm transition-all disabled:opacity-50 active:scale-95"
+              >
+                {isGenerating ? <OuiCVLoader size="sm" /> : (hasPaid ? <Download size={16} /> : <Lock size={16} />)}
+                {isGenerating ? "" : "Télécharger"}
+              </button>
             </div>
 
             <div className="flex sm:hidden items-center gap-1 bg-slate-100 p-1 rounded-xl">
-               <button onClick={() => setMobileView("edit")} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === "edit" ? "bg-white text-primary shadow-sm" : "text-slate-400"}`}>
-                 <Pencil size={12} /> Éditer
-               </button>
-               <button onClick={() => setMobileView("preview")} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === "preview" ? "bg-white text-primary shadow-sm" : "text-slate-400"}`}>
-                 <Eye size={12} /> Aperçu
-               </button>
+              <button onClick={() => setMobileView("edit")} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === "edit" ? "bg-white text-primary shadow-sm" : "text-slate-400"}`}>
+                <Pencil size={12} /> Éditer
+              </button>
+              <button onClick={() => setMobileView("preview")} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${mobileView === "preview" ? "bg-white text-primary shadow-sm" : "text-slate-400"}`}>
+                <Eye size={12} /> Aperçu
+              </button>
             </div>
 
-            <div className="flex sm:hidden">
-               {hasPaid ? (
-                 <button onClick={() => handleDownload(selectedTpl.id)} className="w-10 h-10 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-90 transition-all text-white rounded-xl flex items-center justify-center"><Download size={18} /></button>
-               ) : (
-                 <button onClick={() => setShowPaywall(true)} className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center active:scale-90 transition-all"><Lock size={18} /></button>
-               )}
+            <div className="flex sm:hidden items-center gap-2">
+              <button
+                onClick={async () => {
+                  if (editingData) await handleSave();
+                  if (hasPaid) {
+                    handleDownload(selectedTpl.id);
+                  } else {
+                    setShowPaywall(true);
+                  }
+                }}
+                className="w-10 h-10 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 active:scale-90 transition-all text-white rounded-xl flex items-center justify-center"
+              >
+                {hasPaid ? <Download size={18} /> : <Lock size={18} />}
+              </button>
+              {/* 3-dot menu */}
+              <div className="relative">
+                <button onClick={() => setShowMobileMenu(v => !v)} className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                  <MoreVertical size={18} className="text-slate-600" />
+                </button>
+                {showMobileMenu && (
+                  <div className="absolute right-0 top-12 bg-white rounded-2xl shadow-2xl border border-slate-100 w-56 z-50 overflow-hidden">
+                    <button onClick={() => { setShowModelPicker(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3">
+                      <Layers size={16} /> Changer de modèle
+                    </button>
+                    <div className="border-t border-slate-100" />
+                    <button onClick={() => { setForceDesktopPreview(v => !v); setMobileView("preview"); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50 flex items-center gap-3">
+                      <Monitor size={16} /> {forceDesktopPreview ? "Version mobile" : "Version desktop"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50">
-            <div className={`w-full md:w-[480px] flex flex-col border-r border-slate-200 overflow-y-auto bg-white shrink-0 shadow-xl z-10 ${mobileView === "preview" ? "hidden md:flex" : "flex"}`}>
-              <EditorContent 
+            <div className={`w-full md:w-[480px] flex flex-col border-r border-slate-200 bg-white shrink-0 shadow-xl z-10 ${mobileView === "preview" ? "hidden md:flex" : "flex"}`}>
+              <EditorContent
                 editingData={editingData}
                 update={update}
+                updateTopLevel={updateTopLevel}
                 updateArr={updateArr}
                 addArr={addArr}
                 removeArr={removeArr}
@@ -992,40 +1435,89 @@ export default function TemplateGrid({
                 deleteSection={deleteSection}
                 newSectionName={newSectionName}
                 setNewSectionName={setNewSectionName}
+                analysisData={analysisData}
               />
+
+              {/* Removed redundant ATS Data Panel from here - moved inside EditorContent */}
             </div>
 
             <div className={`flex-1 overflow-auto bg-slate-200/50 flex flex-col relative min-h-[500px] md:min-h-0 ${mobileView === "edit" ? "hidden md:flex" : "flex"}`}>
+              {/* Model Picker Overlay */}
+              {showModelPicker && (
+                <div className="absolute inset-0 z-30 bg-white/95 backdrop-blur-sm overflow-y-auto p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-black text-slate-900 text-lg flex items-center gap-2"><Layers size={20} className="text-primary" /> Changer de modèle</h3>
+                    <button onClick={() => setShowModelPicker(false)} className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {templates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSelect(t.id)}
+                        className={`group relative bg-slate-50 rounded-2xl overflow-hidden border-2 transition-all hover:border-primary hover:shadow-lg ${String(t.id) === String(selectedTemplate) ? "border-primary" : "border-transparent"
+                          }`}
+                      >
+                        <div style={{ height: 180 }} className="relative overflow-hidden">
+                          <div className="absolute inset-0 flex justify-center items-start pt-2">
+                            <div className="scale-[0.24] origin-top transform-gpu pointer-events-none">
+                              <CVRenderer template={{ ...t, templateData: editingData || t.templateData }} isPaid={true} analysisData={null} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-2 border-t border-slate-200 bg-white">
+                          <p className="font-black text-slate-900 text-xs">{t.templateStyle}</p>
+                        </div>
+                        {String(t.id) === String(selectedTemplate) && (
+                          <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                            <CheckCircle2 size={14} className="text-white" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="md:hidden sticky top-0 z-20 px-4 py-2 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Aperçu en direct</span>
                 <div className="flex items-center gap-2">
+                  <button onClick={() => setShowModelPicker(true)} className="text-[10px] font-black text-primary flex items-center gap-1"><Layers size={12} /> Modèle</button>
                   <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-bold text-emerald-600">Sync IA</span>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto px-0 py-4 md:p-12 flex justify-center items-start">
-                <div className={`relative bg-white shadow-2xl rounded-sm overflow-hidden transform-gpu ${!hasPaid ? "pointer-events-none" : ""}`} style={{ width: "100%", maxWidth: 794, minWidth: 320 }}>
-                  <div className="w-full transform-gpu flex justify-center" style={{ transform: "scale(var(--preview-scale, 1))", transformOrigin: 'top center' }}>
+              <div
+                ref={previewViewportRef}
+                className={`cv-live-preview flex-1 overflow-auto px-2 py-3 md:p-12 ${forceDesktopPreview ? "justify-start" : "justify-center"} flex items-start`}
+                style={{ "--preview-scale": previewScale } as CSSProperties}
+              >
+                <div
+                  className="relative bg-white shadow-2xl rounded-sm overflow-visible transform-gpu"
+                  style={{
+                    width: "calc(794px * var(--preview-scale, 1))",
+                    height: "calc(1123px * var(--preview-scale, 1))",
+                    minWidth: forceDesktopPreview ? 794 : undefined,
+                  }}
+                >
+                  <div className="absolute left-0 top-0 w-[794px] transform-gpu flex justify-center" style={{ transform: "scale(var(--preview-scale, 1))", transformOrigin: 'top left' }}>
                     <style>{`
-                      @media (max-width: 400px) { :root { --preview-scale: 0.52; } }
-                      @media (min-width: 401px) and (max-width: 639px) { :root { --preview-scale: 0.64; } }
-                      @media (min-width: 640px) and (max-width: 767px) { :root { --preview-scale: 0.80; } }
-                      @media (min-width: 768px) and (max-width: 1023px) { :root { --preview-scale: 0.94; } }
-                      @media (min-width: 1024px) { :root { --preview-scale: 1; } }
+                      .cv-live-preview .cv-printable { margin-left: 0 !important; margin-right: 0 !important; }
                     `}</style>
-                    <CVRenderer template={{ ...selectedTpl, templateData: editingData }} isPaid={hasPaid} analysisData={analysisData} />
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={editingData?.sectionOrder || []} strategy={verticalListSortingStrategy}>
+                        <CVRenderer
+                          template={memoizedTemplate}
+                          isPaid={hasPaid}
+                          analysisData={analysisData}
+                          isInteractive={true}
+                          onUpdate={(path: string, val: any) => update(path, val)}
+                          onDeleteSection={(key: string) => deleteSection(key)}
+                        />
+                      </SortableContext>
+                    </DndContext>
                   </div>
-                  {!hasPaid && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm">
-                      <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-xs mx-4">
-                        <Lock className="mx-auto mb-4 text-primary" size={40} />
-                        <h3 className="text-lg font-black mb-2">Aperçu verrouillé</h3>
-                        <p className="text-slate-500 text-sm mb-6">Débloquez pour modifier et télécharger sans filigrane.</p>
-                        <button onClick={() => setShowPaywall(true)} className="w-full bg-primary text-white py-3 rounded-2xl font-black text-sm">Débloquer</button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1033,7 +1525,14 @@ export default function TemplateGrid({
         </div>
       )}
 
-      {showPaywall && <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} analysisId={analysisId} />}
+      {showPaywall && (
+        <PaywallModal
+          isOpen={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          analysisId={analysisId}
+          templateNumber={selectedTpl?.templateNumber}
+        />
+      )}
     </div>
   );
 }
