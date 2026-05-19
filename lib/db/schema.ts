@@ -19,6 +19,7 @@ export const users = pgTable('users', {
   subscriptionStatus: subscriptionStatusEnum('subscription_status'),
   subscriptionEndsAt: timestamp('subscription_ends_at'),
   cvTemplatesUsedThisMonth: integer('cv_templates_used_this_month').default(0),
+  aiRewritesUsed: integer('ai_rewrites_used').default(0),
   isAdmin: boolean('is_admin').default(false),
   isBlocked: boolean('is_blocked').default(false),
   createdAt: timestamp('created_at').defaultNow(),
@@ -42,6 +43,7 @@ export const cvAnalyses = pgTable('cv_analyses', {
   keywordsFound: jsonb('keywords_found'),
   optimizedData: jsonb('optimized_data'),
   status: analysisStatusEnum('status').default('processing'),
+  detectedPlatform: varchar('detected_platform', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

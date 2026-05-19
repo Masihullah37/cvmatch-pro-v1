@@ -29,16 +29,20 @@ export async function createCheckoutSession(
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
-  
+
   let successPath = "";
   if (analysisId) {
-    successPath = templateNumber 
+    successPath = templateNumber
       ? `/${locale}/templates/${analysisId}?template=${templateNumber}&payment=success`
       : `/${locale}/templates/${analysisId}?payment=success`;
   } else {
-    // Direct purchase from homepage
     successPath = `/${locale}/dashboard?payment=success`;
   }
+
+  const bridgeTarget = encodeURIComponent(
+    `${successPath}&session_id={CHECKOUT_SESSION_ID}`
+  );
+  const successBridgeUrl = `${appUrl}/${locale}/payment/bridge?target=${bridgeTarget}`;
 
   const cancelUrl = analysisId 
     ? `${appUrl}/${locale}/results/${analysisId}?canceled=true`
@@ -67,7 +71,7 @@ export async function createCheckoutSession(
       ],
       mode: "payment",
       allow_promotion_codes: true,
-      success_url: `${appUrl}${successPath}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: successBridgeUrl,
       cancel_url: cancelUrl,
       custom_text: {
         submit: {
@@ -92,7 +96,7 @@ export async function createCheckoutSession(
       ],
       mode: "subscription",
       allow_promotion_codes: true,
-      success_url: `${appUrl}${successPath}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: successBridgeUrl,
       cancel_url: cancelUrl,
       custom_text: {
         submit: {

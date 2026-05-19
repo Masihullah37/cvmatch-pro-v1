@@ -236,7 +236,7 @@ export default function SidebarClient({ credits = 0, planName = 'Gratuit' }: Sid
   const navItems = [
     { href: '/#analyze', label: 'Nouvelle Analyse', icon: Plus, accent: true },
     { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { href: '/dashboard#historique', label: 'Historique', icon: Clock },
+    { href: '/dashboard/my-cvs', label: 'Mon CV', icon: Clock },
     { href: '/dashboard/settings', label: 'Paramètres', icon: Settings },
   ];
 

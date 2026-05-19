@@ -8,6 +8,13 @@
       "when": 1777289309459,
       "tag": "0000_busy_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779137476582,
+      "tag": "0001_blue_scalphunter",
+      "breakpoints": true
     }
   ]
 }

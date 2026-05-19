@@ -10,6 +10,10 @@ import { extractStructuredJobDetails, isUrl, scrapeJobDescription } from "@/lib/
 import { auth } from "@clerk/nextjs/server";
 import { eq, sql, and } from "drizzle-orm";
 import { getEffectiveCredits, isCreditsExpired } from "@/lib/utils/subscription";
+import { redis } from "@/lib/rate-limit/upstash";
+import { getUserPlan } from "@/lib/billing/get-user-plan";
+import crypto from "crypto";
+import { cookies } from "next/headers";
 
 /**
  * RULE: Prevent AI Token Waste
@@ -59,9 +63,10 @@ export async function performCVAnalysis(formData: FormData) {
       jobDescription = scrapedContent;
     } catch (err: any) {
       console.warn("=== URL SCRAPING FAILED ===", err.message);
-      throw new Error(
-        "Impossible d'extraire le contenu de l'URL fournie. Veuillez copier-coller la description du poste manuellement."
-      );
+      return {
+        success: false,
+        error: "Impossible d'extraire le contenu de l'URL fournie. Veuillez copier-coller la description du poste manuellement."
+      };
     }
   }
 
@@ -106,6 +111,28 @@ export async function performCVAnalysis(formData: FormData) {
 
   // 3. Create Analysis Record
   let newAnalysis: typeof cvAnalyses.$inferSelect;
+  
+  // ✅ ATS Platform Detection
+  const atsKeywords = [
+    "Workday",
+    "Taleo",
+    "Greenhouse",
+    "Lever",
+    "ICIMS",
+    "SmartRecruiters",
+    "BambooHR"
+  ];
+  
+  let detectedPlatform = null;
+  const combinedText = `${jobDescription} ${cvText}`;
+  
+  for (const keyword of atsKeywords) {
+    if (combinedText.toLowerCase().includes(keyword.toLowerCase())) {
+      detectedPlatform = keyword;
+      break;
+    }
+  }
+
   try {
     const result = await db.insert(cvAnalyses).values({
       userId: dbUserId, // Associate with DB user
@@ -123,6 +150,8 @@ export async function performCVAnalysis(formData: FormData) {
         ...rawData,
         _originalCvText: cvText, // Store raw text inside JSON to avoid schema changes
       },
+      // @ts-ignore
+      detectedPlatform: detectedPlatform,
     }).returning();
     newAnalysis = result[0];
   } catch (dbError: any) {
@@ -210,7 +239,8 @@ export async function generateAIResume(analysisId: string, currentCVData?: any) 
       .set({ templateData: finalData, isPaid: true })
       .where(eq(cvTemplates.analysisId, analysisId));
   } else {
-    const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
+    const { CV_TEMPLATE_STYLES } = await import("@/lib/cv-template-styles");
+    const styles = [...CV_TEMPLATE_STYLES];
     const templatePromises = styles.map((style, i) => {
       return db.insert(cvTemplates).values({
         analysisId: analysis.id,
@@ -273,7 +303,8 @@ export async function deductCreditForAnalysis(analysisId: string) {
   });
 
   if (existingTemplates.length === 0) {
-    const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
+    const { CV_TEMPLATE_STYLES } = await import("@/lib/cv-template-styles");
+    const styles = [...CV_TEMPLATE_STYLES];
     const templatePromises = styles.map((style, i) => db.insert(cvTemplates).values({
       analysisId: analysisId,
       templateNumber: i + 1,
@@ -290,4 +321,191 @@ export async function deductCreditForAnalysis(analysisId: string) {
 
   revalidatePath('/[locale]/templates/[id]', 'page');
   return { success: true };
+}
+
+export async function generateRewritePreview(analysisId: string, currentCVData: any) {
+  const { userId } = await auth();
+  
+  let dbUser = null;
+  if (userId) {
+    dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    });
+  }
+
+  const plan = getUserPlan(dbUser);
+  const trackingSalt = process.env.TRACKING_SALT || "default_salt";
+  
+  let userIdentifier = userId || "anonymous";
+  let retryKey = `ai_rewrite_retry_${userIdentifier}`;
+  
+  const cookieStore = await cookies();
+  const trackToken = cookieStore.get('_cvb_track')?.value;
+  const hashedToken = trackToken ? crypto.createHash('sha256').update(trackToken + trackingSalt).digest('hex') : "anon_fallback";
+
+  if (!userId) {
+    userIdentifier = hashedToken;
+    retryKey = `ai_rewrite_retry_${hashedToken}`;
+  }
+
+  // 1. Check Retry Window
+  const hasRetry = await redis.get(retryKey);
+  if (hasRetry) {
+    console.log("=== BYPASSING LIMITS (RETRY WINDOW) ===");
+  } else {
+    // Check limits if not in retry window
+    if (plan === "free") {
+      // @ts-ignore - ai_rewrites_used will be added to schema
+      if (dbUser && dbUser.ai_rewrites_used >= 3) {
+        throw new Error("Limite de modifications atteinte pour le plan gratuit.");
+      }
+    } else if (plan === "anonymous") {
+      const anonCount = await redis.get(`ai_rewrite_anon_${hashedToken}`);
+      if (anonCount && Number(anonCount) >= 1) {
+        throw new Error("Limite de modifications atteinte pour les invités.");
+      }
+    } else if (plan === "trial") {
+      const trialKey = `ai_rewrite_trial_${userId}`;
+      const count = await redis.get(trialKey);
+      if (count && Number(count) >= 5) {
+        throw new Error("Limite horaire atteinte (5/heure).");
+      }
+    } else if (plan === "pro") {
+      const proKey = `ai_rewrite_pro_${userId}`;
+      const count = await redis.get(proKey);
+      if (count && Number(count) >= 7) {
+        throw new Error("Limite horaire atteinte (7/heure).");
+      }
+    }
+  }
+
+  const analysis = await db.query.cvAnalyses.findFirst({
+    where: eq(cvAnalyses.id, analysisId),
+  });
+
+  if (!analysis) throw new Error("Analyse introuvable.");
+
+  // Generate AI Rewrite
+  const cvSource = JSON.stringify(currentCVData);
+  const structuredJobDetails = extractStructuredJobDetails(analysis.jobDescription || "");
+
+  const aiResult = await generateOptimizedCV(
+    cvSource,
+    analysis.jobDescription || "",
+    {
+      atsScore: analysis.atsScore,
+      scoreBreakdown: analysis.scoreBreakdown,
+      flaws: analysis.flaws,
+      suggestions: analysis.suggestions,
+      keywordsMissing: analysis.keywordsMissing,
+      keywordsFound: analysis.keywordsFound,
+    } as any,
+    structuredJobDetails
+  );
+
+  // Validation
+  if (typeof aiResult !== 'object' || aiResult === null) {
+    throw new Error("Erreur de génération AI. Veuillez réessayer.");
+  }
+  
+  // Check for blank entries or hallucinated segments (basic check)
+  const hasBlank = Object.values(aiResult).some(val => val === "" || val === null || val === undefined);
+  if (hasBlank) {
+    throw new Error("Génération AI incomplète. Veuillez réessayer.");
+  }
+
+  // Set Retry Token (TTL 5 mins)
+  await redis.set(retryKey, "1", { ex: 300 });
+
+  // Increment counts if NOT in retry window and NOT trial/pro (who are just rate limited on generation)
+  if (!hasRetry) {
+    if (plan === "trial") {
+      const trialKey = `ai_rewrite_trial_${userId}`;
+      await redis.incr(trialKey);
+      await redis.expire(trialKey, 3600); // 1 hour
+    } else if (plan === "pro") {
+      const proKey = `ai_rewrite_pro_${userId}`;
+      await redis.incr(proKey);
+      await redis.expire(proKey, 3600); // 1 hour
+    }
+  }
+
+  return aiResult;
+}
+
+export async function acceptRewrite(analysisId: string) {
+  const { userId } = await auth();
+  
+  let dbUser = null;
+  if (userId) {
+    dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    });
+  }
+
+  const plan = getUserPlan(dbUser);
+  const trackingSalt = process.env.TRACKING_SALT || "default_salt";
+  
+  const cookieStore = await cookies();
+  const trackToken = cookieStore.get('_cvb_track')?.value;
+  const hashedToken = trackToken ? crypto.createHash('sha256').update(trackToken + trackingSalt).digest('hex') : "anon_fallback";
+
+  // Increment Timing: Only add to the count after the user reviews the preview output and explicitly clicks the "Accept" action.
+  if (plan === "free" && dbUser) {
+    await db.update(users)
+      // @ts-ignore - ai_rewrites_used will be added to schema
+      .set({ ai_rewrites_used: (dbUser.ai_rewrites_used || 0) + 1 })
+      .where(eq(users.id, dbUser.id));
+  } else if (plan === "anonymous") {
+    const anonKey = `ai_rewrite_anon_${hashedToken}`;
+    await redis.incr(anonKey);
+    await redis.expire(anonKey, 30 * 24 * 3600); // 30 days
+  }
+
+  return { success: true };
+}
+
+export async function createQuickCVAnalysis() {
+  const { userId } = await auth();
+  let dbUserId: string | null = null;
+
+  if (userId) {
+    let dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, userId),
+    });
+
+    if (!dbUser) {
+      const [newUser] = await db.insert(users).values({
+        clerkId: userId,
+        credits: 0,
+      }).returning();
+      dbUserId = newUser.id;
+    } else {
+      dbUserId = dbUser.id;
+    }
+  }
+
+  const DEMO_FALLBACK = {
+    userName: "Votre Nom",
+    jobTitle: "Votre Titre",
+    summary: "Ajoutez votre profil professionnel ici.",
+    contact: { email: "", phone: "", location: "" },
+    experience: [{ title: "Poste", company: "Entreprise", period: "2020–2024", description: "Description de vos responsabilités." }],
+    education: [{ degree: "Diplôme", school: "Établissement", year: "2020", details: "" }],
+    skills: ["Compétence 1", "Compétence 2"],
+    languages: [{ language: "Français", level: "Natif" }],
+    projects: []
+  };
+
+  const [newAnalysis] = await db.insert(cvAnalyses).values({
+    userId: dbUserId,
+    status: 'completed',
+    atsScore: 0,
+    userName: "Votre Nom",
+    jobTitle: "Votre Titre",
+    jobDescription: "Création rapide de CV",
+    optimizedData: DEMO_FALLBACK,
+  }).returning();
+
+  return newAnalysis.id;
 }

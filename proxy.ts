@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import createMiddleware from "next-intl/middleware";
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { routing } from "./i18n/routing";
 import { db } from "./lib/db";
 import { users } from "./lib/db/schema";
@@ -10,9 +11,7 @@ const intlMiddleware = createMiddleware(routing);
 
 const isProtectedRoute = createRouteMatcher([
   "/api/generate-pdf",
-  "/api/uploadthing",
   "/:locale/dashboard(.*)",
-  "/:locale/templates(.*)",
 ]);
 
 const isAdminRoute = createRouteMatcher(["/:locale/admin(.*)"]);
@@ -90,11 +89,23 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   // 5. INTL
+  let response = NextResponse.next();
   if (!pathname.startsWith("/api")) {
-    return intlMiddleware(req);
+    response = intlMiddleware(req);
   }
 
-  return NextResponse.next();
+  // ✅ GDPR Tracking Cookie
+  if (!req.cookies.has("_cvb_track")) {
+    const token = crypto.randomBytes(16).toString("hex");
+    response.cookies.set("_cvb_track", token, {
+      maxAge: 30 * 24 * 3600, // 30 days
+      secure: true,
+      sameSite: "strict",
+      httpOnly: false,
+    });
+  }
+
+  return response;
 });
 
 export const config = {

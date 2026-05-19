@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { ArrowDown, Sparkles, Zap, CheckCircle2, Upload, Cpu, BarChart3, Download } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
+import { createQuickCVAnalysis } from "@/app/actions/analysis";
+
 const FLIP_WORDS = ["recrutements", "CV", "candidatures", "carrière"];
 const FLIP_COLORS = ["#34d399", "#fb923c", "#34d399", "#fb923c"];
 
@@ -15,9 +19,23 @@ const STEPS = [
 ];
 
 export default function HeroSection() {
+  const router = useRouter();
+  const locale = useLocale();
   const [wordIndex, setWordIndex] = useState(0);
   const [flipping, setFlipping] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateCV = async () => {
+    setIsCreating(true);
+    try {
+      const id = await createQuickCVAnalysis();
+      router.push(`/${locale}/templates/${id}`);
+    } catch (error) {
+      console.error("Failed to create CV analysis", error);
+      setIsCreating(false);
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -197,20 +215,26 @@ export default function HeroSection() {
                 <Zap size={18} />
                 Analyser mon CV
               </a>
-              <a
-                href="#pricing"
-                className="inline-flex items-center gap-3 font-bold text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-slate-100"
+              <button
+                onClick={handleCreateCV}
+                disabled={isCreating}
+                className="inline-flex items-center justify-center gap-3 font-bold text-sm uppercase tracking-widest transition-all duration-200 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-80"
                 style={{
-                  background: "#f8fafc",
+                  background: isCreating ? "#e2e8f0" : "#f8fafc",
                   border: "2px solid #e2e8f0",
-                  color: "#0f172a",
+                  color: isCreating ? "#94a3b8" : "#0f172a",
                   padding: "16px 32px",
                   borderRadius: 16,
-                  textDecoration: "none",
+                  cursor: isCreating ? "not-allowed" : "pointer",
+                  minWidth: "180px",
                 }}
               >
-                Voir les tarifs
-              </a>
+                {isCreating ? (
+                  <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  "Créer un CV"
+                )}
+              </button>
             </div>
 
             <div className="flex items-center gap-3 pt-2 justify-center lg:justify-start">

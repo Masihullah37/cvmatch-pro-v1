@@ -9,7 +9,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { analysisId } = await req.json();
+    const { analysisId, locale = "fr", templateNumber } = await req.json();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
+    const successPath = templateNumber
+      ? `/${locale}/templates/${analysisId}?template=${templateNumber}&payment=success`
+      : `/${locale}/templates/${analysisId}?payment=success`;
+    const bridgeTarget = encodeURIComponent(
+      `${successPath}&session_id={CHECKOUT_SESSION_ID}`
+    );
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -20,8 +27,8 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/templates/${analysisId}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/fr/templates/${analysisId}`,
+      success_url: `${appUrl}/${locale}/payment/bridge?target=${bridgeTarget}`,
+      cancel_url: `${appUrl}/${locale}/templates/${analysisId}`,
       metadata: {
         userId,
       },

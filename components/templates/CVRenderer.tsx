@@ -1,9 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/static-components, react/no-unescaped-entities */
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2 } from 'lucide-react';
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import Watermark from "@/components/templates/Watermark";
+import { asRecordArray, asStringArray } from "@/components/templates/normalizeCvArrays";
 
 // Inline SVG icons to avoid lucide-react client-only restriction
 const MapPin = ({
@@ -78,89 +75,24 @@ const Mail = ({
 );
 
 
-const InlineEdit = ({ value, path, isInteractive, onUpdate, className = "", multiline = false }: any) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentValue, setCurrentValue] = useState(value);
-  const inputRef = useRef<any>(null);
-
-  if (!isInteractive) return <span className={className}>{value}</span>;
-
-  const handleBlur = () => {
-    setIsEditing(false);
-    if (currentValue !== value && onUpdate) onUpdate(path, currentValue);
-  };
-
-  if (isEditing) {
-    if (multiline) {
-      return (
-        <textarea
-          ref={inputRef}
-          value={currentValue}
-          onChange={(e) => setCurrentValue(e.target.value)}
-          onBlur={handleBlur}
-          autoFocus
-          className={`w-full bg-white/95 text-slate-950 border border-blue-300 rounded p-1 outline-none focus:ring-1 focus:ring-blue-400 shadow-sm ${className}`}
-          rows={Math.max(2, (currentValue || "").split('\n').length)}
-        />
-      );
-    }
-    return (
-      <input
-        ref={inputRef}
-        value={currentValue}
-        onChange={(e) => setCurrentValue(e.target.value)}
-        onBlur={handleBlur}
-        autoFocus
-        className={`w-full bg-white/95 border border-blue-300 rounded p-1 outline-none focus:ring-1 focus:ring-blue-400 text-slate-950 shadow-sm ${className}`}
-      />
-    );
+const InlineEdit = (props: any) => {
+  if (!props.isInteractive) {
+    return <span className={props.className}>{props.value || (props.multiline ? "\u00A0\n\u00A0" : "\u00A0")}</span>;
   }
-
-  return (
-    <span
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCurrentValue(value); setIsEditing(true); }}
-      className={`cursor-text hover:bg-white/20 hover:ring-1 hover:ring-blue-300 rounded transition-colors inline-block min-w-[20px] ${className}`}
-      title="Cliquez pour modifier"
-    >
-      {value || (multiline ? "\u00A0\n\u00A0" : "\u00A0")}
-    </span>
-  );
+  const Interactive = require('./InlineEditInteractive').default;
+  return <Interactive {...props} />;
 };
 
-const DraggableSection = ({ id, isInteractive, onDelete, children, style: extraStyle = {}, className = "" }: any) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-
-  const style = {
-    ...extraStyle,
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 50 : 'auto',
-  };
-
+const DraggableSection = ({ id, isInteractive, onDelete, children, style: extraStyle = {}, className = '' }: any) => {
   if (!isInteractive) return <div style={extraStyle} className={className}>{children}</div>;
-
+  const Interactive = require('./DraggableSectionInteractive').default;
   return (
-    <div ref={setNodeRef} style={style} className={`group relative ${className}`}>
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute left-1 top-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-grab active:cursor-grabbing p-1 bg-white rounded-md shadow-sm border border-slate-200 text-slate-500 hover:text-slate-700 transition-all z-[100]"
-        title="Déplacer"
-      >
-        <GripVertical size={14} />
-      </div>
-      <div
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(id); }}
-        className="absolute right-1 top-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-pointer p-1 bg-white rounded-md shadow-sm border border-red-200 text-red-500 hover:text-red-700 hover:bg-red-50 transition-all z-[100]"
-        title="Supprimer"
-      >
-        <Trash2 size={14} />
-      </div>
+    <Interactive id={id} onDelete={onDelete} style={extraStyle} className={className}>
       {children}
-    </div>
+    </Interactive>
   );
 };
+
 
 export const CVRenderer = ({
   template,
@@ -178,12 +110,12 @@ export const CVRenderer = ({
   const summaryText =
     data.summary ||
     "Professionnel expérimenté avec une solide expertise dans son domaine.";
-  const experiences = data.experience || [];
-  const skills = data.skills || [];
-  const education = data.education || [];
+  const experiences = asRecordArray(data.experience);
+  const skills = asStringArray(data.skills);
+  const education = asRecordArray(data.education);
   const contact = data.contact || {};
-  const projects = data.projects || [];
-  const languages = data.languages || [];
+  const projects = asRecordArray(data.projects);
+  const languages = asRecordArray(data.languages);
 
   const headers = data.headers || {
     summary: "Profil",
@@ -244,7 +176,7 @@ export const CVRenderer = ({
       <DraggableSection id="languages" isInteractive={interactive} onDelete={deleteHandler}>
         <SectionTitle sectionKey="languages" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className="space-y-1 mt-3">
-          {(sectionLanguages || []).map((l: any, i: number) => (
+          {asRecordArray(sectionLanguages).map((l: any, i: number) => (
             <p key={i} className={itemClass}>
               <strong><InlineEdit value={l.language || l.name || (typeof l === "string" ? l : "")} path={`languages.${i}.language`} isInteractive={interactive} onUpdate={updateHandler} /></strong>
               {l.level && <span className="opacity-70"> — <InlineEdit value={l.level} path={`languages.${i}.level`} isInteractive={isInteractive} onUpdate={onUpdate} /></span>}
@@ -261,7 +193,7 @@ export const CVRenderer = ({
       <DraggableSection id="projects" isInteractive={interactive} onDelete={deleteHandler}>
         <SectionTitle sectionKey="projects" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className="space-y-4 mt-3">
-          {(sectionProjects || []).map((proj: any, i: number) => (
+          {asRecordArray(sectionProjects).map((proj: any, i: number) => (
             <div key={i} className={itemClass}>
               <p className="font-bold"><InlineEdit value={proj.name} path={`projects.${i}.name`} isInteractive={interactive} onUpdate={updateHandler} /></p>
               {proj.technologies && (
@@ -283,7 +215,7 @@ export const CVRenderer = ({
       <DraggableSection id="experience" isInteractive={interactive} onDelete={deleteHandler}>
         <ExperienceTitle className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className="space-y-10">
-          {(sectionExperiences || []).map((exp: any, i: number) => (
+          {asRecordArray(sectionExperiences).map((exp: any, i: number) => (
             <div key={i} className="flex gap-6 relative">
               <div className="w-px bg-slate-200 relative"><div className="absolute top-2 -left-1 w-2.5 h-2.5 bg-[#3d3d3d] rounded-full"></div></div>
               <div className="flex-1 pb-4">
@@ -307,7 +239,7 @@ export const CVRenderer = ({
       <DraggableSection id="education" isInteractive={interactive} onDelete={deleteHandler}>
         <SectionTitle sectionKey="education" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className="space-y-8">
-          {(sectionEducation || []).map((edu: any, i: number) => (
+          {asRecordArray(sectionEducation).map((edu: any, i: number) => (
             <div key={i} className="flex gap-6 relative">
               <div className="w-px bg-slate-200 relative"><div className="absolute top-2 -left-1 w-2.5 h-2.5 bg-[#3d3d3d] rounded-full"></div></div>
               <div className="flex-1 pb-4">
@@ -338,8 +270,8 @@ export const CVRenderer = ({
       <DraggableSection id="skills" isInteractive={interactive} onDelete={deleteHandler}>
         <SectionTitle sectionKey="skills" className={headerClass} headers={sectionHeaders} isInteractive={interactive} onUpdate={updateHandler} />
         <div className={layout === "tags" ? "flex flex-wrap gap-2 mt-3" : "space-y-2 mt-3"}>
-          {(sectionSkills || []).map((s: string, i: number) => (
-            <span key={i} className={`${itemClass} ${layout === "tags" ? "inline-block" : ""}`}>
+          {asStringArray(sectionSkills).map((s: string, i: number) => (
+            <span key={i} className={`${itemClass} ${layout === "tags" ? "inline-block" : "block"}`}>
               <InlineEdit value={s} path={`skills.${i}`} isInteractive={interactive} onUpdate={updateHandler} />
             </span>
           ))}
@@ -363,11 +295,18 @@ export const CVRenderer = ({
     );
   };
 
-  const IdentityHeader = ({ nameClass, titleClass, containerClass = "", contactContainerClass = "text-right space-y-1 text-[10px] font-bold text-slate-500", showIcons = true, showContact = true, name: displayName = name, title: displayTitle = title, contact: contactData = contact, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
+  const IdentityHeader = ({ nameClass, titleClass, containerClass = "", contactContainerClass = "text-right space-y-1 text-[10px] font-bold text-slate-500", showIcons = true, showContact = true, showPhoto = true, name: displayName = name, title: displayTitle = title, contact: contactData = contact, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
     <header className={containerClass}>
-      <div>
-        <h1 className={nameClass}><InlineEdit value={displayName} path="userName" isInteractive={interactive} onUpdate={updateHandler} /></h1>
-        <p className={titleClass}><InlineEdit value={displayTitle} path="jobTitle" isInteractive={interactive} onUpdate={updateHandler} /></p>
+      <div className="flex items-center gap-6">
+        {showPhoto && data.photoUrl && (
+          <div className="w-24 h-24 shrink-0 overflow-hidden rounded-2xl border-2 border-slate-200/50 shadow-md bg-white">
+            <img src={data.photoUrl} alt="Photo" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div>
+          <h1 className={nameClass}><InlineEdit value={displayName} path="userName" isInteractive={interactive} onUpdate={updateHandler} /></h1>
+          <p className={titleClass}><InlineEdit value={displayTitle} path="jobTitle" isInteractive={interactive} onUpdate={updateHandler} /></p>
+        </div>
       </div>
       {showContact && headers?.contact && (
         <DraggableSection id="contact" isInteractive={interactive} onDelete={onDeleteSection}>
@@ -388,12 +327,13 @@ export const CVRenderer = ({
     return (
       <>
         {order.map((key) => {
-          if (key === "summary" && ["Horizon", "Lunar", "Stellar", "Solar", "Nebula"].includes(templateStyle)) return null;
+          if (key === "summary" && ["Horizon", "Lunar", "Stellar", "Solar", "Nebula", "Prism", "Navy", "Vertex", "Verde", "Rose", "Azure", "Classic"].includes(templateStyle)) return null;
           if (key === "contact") return null;
-          if (key === "skills" && ["Horizon", "Eclipse", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Europass", "Galaxy"].includes(templateStyle)) return null;
-          if (key === "languages" && ["Eclipse", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Europass"].includes(templateStyle)) return null;
+          if (key === "skills" && ["Horizon", "Eclipse", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Europass", "Galaxy", "Prism", "Navy", "Vertex", "Verde", "Rose", "Azure"].includes(templateStyle)) return null;
+          if (key === "languages" && ["Eclipse", "Hyperion", "Lunar", "Stellar", "Solar", "Nebula", "Cosmos", "Astra", "Europass", "Prism", "Navy", "Vertex", "Verde", "Rose", "Azure"].includes(templateStyle)) return null;
 
           if (key === "experience") return <ExperienceSection key={key} headerClass={headerClass} experiences={sectionExperiences} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
+          if (key === "education" && ["Rose"].includes(templateStyle)) return null;
           if (key === "education") return <EducationSection key={key} headerClass={headerClass} education={sectionEducation} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
           if (key === "projects") return <ProjectsSection key={key} headerClass={headerClass} itemClass={itemClass} projects={sectionProjects} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
           if (key === "languages") return <LanguagesSection key={key} headerClass={headerClass} itemClass={itemClass} languages={sectionLanguages} isInteractive={interactive} onDeleteSection={deleteHandler} onUpdate={updateHandler} headers={sectionHeaders} />;
@@ -423,6 +363,36 @@ export const CVRenderer = ({
       </>
     );
   };
+
+  // Renders sidebar sections (contact/skills/languages) in sectionOrder so drag-drop reorder works
+  const DynamicSidebarSections = ({ sidebarKeys, configs }: {
+    sidebarKeys: string[];
+    configs: Record<string, { headerClass: string; itemClass: string; layout?: string }>;
+  }) => {
+    const order: string[] = data.sectionOrder || sidebarKeys;
+    const sorted = [...sidebarKeys].sort((a: string, b: string) => {
+      const ai = order.indexOf(a), bi = order.indexOf(b);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+    return (
+      <>
+        {sorted.map((key: string) => {
+          const cfg = configs[key];
+          if (!cfg) return null;
+          if (key === 'contact') return <ContactSection key={key} headerClass={cfg.headerClass} itemClass={cfg.itemClass} />;
+          if (key === 'languages') return <LanguagesSection key={key} headerClass={cfg.headerClass} itemClass={cfg.itemClass} />;
+          if (key === 'skills') return <SkillsSection key={key} headerClass={cfg.headerClass} itemClass={cfg.itemClass} layout={cfg.layout || 'tags'} />;
+          if (key === 'education') return <EducationSection key={key} headerClass={cfg.headerClass} itemClass={cfg.itemClass} />;
+          if (key === 'summary') return <SummarySection key={key} headerClass={cfg.headerClass} itemClass={cfg.itemClass} />;
+          return null;
+        })}
+      </>
+    );
+  };
+
   const ProtectionOverlay = () =>
     !isPaid && (
       <div className="absolute inset-0 z-[60] select-none pointer-events-none">
@@ -438,11 +408,14 @@ export const CVRenderer = ({
     >
       <style>{`
         .cv-readable-sidebar,
-        .cv-readable-sidebar *:not(input):not(textarea):not(button) { color: #ffffff !important; }
+        .cv-readable-sidebar *:not(input):not(textarea):not(button):not(svg):not(path):not(circle):not(line):not(polyline):not(rect):not(.cv-section-controls):not(.cv-section-controls *) { color: #ffffff !important; }
         .cv-readable-sidebar .muted-readable { color: rgba(255,255,255,.78) !important; }
         .cv-readable-sidebar [class*="border-"] { border-color: rgba(255,255,255,.24) !important; }
         .cv-readable-sidebar input,
         .cv-readable-sidebar textarea { color: #0f172a !important; }
+        .cv-section-controls { color: #475569 !important; }
+        .cv-section-controls--delete { color: #dc2626 !important; background: #ffffff !important; border-color: #f87171 !important; }
+        .cv-section-controls--delete svg { color: #dc2626 !important; stroke: #dc2626 !important; }
       `}</style>
       <ProtectionOverlay />
 
@@ -467,13 +440,12 @@ export const CVRenderer = ({
                 <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
               </p>
             </section>
-            <ContactSection
-              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] opacity-90"
-            />
-            <SkillsSection
-              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[9px] bg-white/20 px-2 py-1 rounded text-white"
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "skills"]}
+              configs={{
+                contact: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] opacity-90" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[9px] bg-white/20 px-2 py-1 rounded text-white" },
+              }}
             />
           </div>
           <div className="flex-1 p-12 flex flex-col gap-12">
@@ -482,6 +454,7 @@ export const CVRenderer = ({
               titleClass="text-lg font-bold text-slate-400 mt-1 uppercase tracking-widest"
               containerClass="flex justify-between items-start border-b border-slate-100 pb-8"
               showContact={false}
+              showPhoto={false}
             />
             <DynamicMainSections
               headerClass="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b-2 border-slate-100 pb-2"
@@ -495,6 +468,11 @@ export const CVRenderer = ({
       {style === "Galaxy" && (
         <div className="p-16 font-serif text-[#1a1a1a]">
           <div className="text-center border-b-2 border-gray-100 pb-10 mb-10">
+            {data.photoUrl && (
+              <div className="w-28 h-28 mx-auto mb-6 rounded-full overflow-hidden border-2 border-gray-100 shadow-sm">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
             <h1 className="text-5xl font-bold uppercase tracking-widest mb-4">
               <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
             </h1>
@@ -569,17 +547,13 @@ export const CVRenderer = ({
                 />
               </p>
             </div>
-            <ContactSection
-              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] text-white/90"
-            />
-            <LanguagesSection
-              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] text-white/90"
-            />
-            <SkillsSection
-              headerClass="text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[10px] bg-white/20 px-2 py-1 rounded text-white"
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "languages", "skills"]}
+              configs={{
+                contact: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] text-white/90" },
+                languages: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] text-white/90" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[10px] bg-white/20 px-2 py-1 rounded text-white" },
+              }}
             />
           </div>
           <div className="flex-1 p-16 flex flex-col gap-12">
@@ -682,18 +656,13 @@ export const CVRenderer = ({
                 {name[0]}
               </div>
             )}
-            <ContactSection
-              headerClass="text-xs font-black uppercase tracking-widest text-emerald-400"
-              itemClass="text-[10px] text-white"
-            />
-            <LanguagesSection
-              headerClass="text-xs font-black uppercase tracking-widest text-emerald-400"
-              itemClass="text-[10px] text-white"
-            />
-            <SkillsSection
-              headerClass="text-xs font-black uppercase tracking-widest text-emerald-400"
-              itemClass="bg-emerald-800/50 p-2 rounded-lg text-[10px] font-bold border border-emerald-700/50"
-              layout="list"
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "languages", "skills"]}
+              configs={{
+                contact: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "text-[10px] text-white" },
+                languages: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "text-[10px] text-white" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "bg-emerald-800/50 p-2 rounded-lg text-[10px] font-bold border border-emerald-700/50" },
+              }}
             />
           </div>
           <div className="flex-1 p-16 flex flex-col gap-12">
@@ -737,18 +706,13 @@ export const CVRenderer = ({
           </header>
           <div className="grid grid-cols-12 gap-8">
             <div className="col-span-4 flex flex-col gap-12">
-              <ContactSection
-                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-4"
-                itemClass="text-sm font-bold text-slate-600"
-              />
-              <LanguagesSection
-                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-4"
-                itemClass="text-sm font-bold text-slate-600"
-              />
-              <SkillsSection
-                headerClass="text-xs font-black uppercase tracking-widest text-slate-400 mb-4"
-                itemClass="text-sm font-bold text-slate-700"
-                layout="list"
+              <DynamicSidebarSections
+                sidebarKeys={["contact", "languages", "skills"]}
+                configs={{
+                  contact: { headerClass: "text-xs font-black uppercase tracking-widest text-slate-400 mb-4", itemClass: "text-sm font-bold text-slate-600" },
+                  languages: { headerClass: "text-xs font-black uppercase tracking-widest text-slate-400 mb-4", itemClass: "text-sm font-bold text-slate-600" },
+                  skills: { headerClass: "text-xs font-black uppercase tracking-widest text-slate-400 mb-4", itemClass: "text-sm font-bold text-slate-700", layout: "list" },
+                }}
               />
             </div>
             <div className="col-span-8 flex flex-col gap-16">
@@ -788,13 +752,12 @@ export const CVRenderer = ({
                   <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
                 </p>
               </div>
-              <LanguagesSection
-                headerClass="text-sm font-black uppercase text-indigo-900 mb-6"
-                itemClass="text-xs"
-              />
-              <SkillsSection
-                headerClass="text-sm font-black uppercase text-indigo-900 mb-6"
-                itemClass="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100"
+              <DynamicSidebarSections
+                sidebarKeys={["languages", "skills"]}
+                configs={{
+                  languages: { headerClass: "text-sm font-black uppercase text-indigo-900 mb-6", itemClass: "text-xs" },
+                  skills: { headerClass: "text-sm font-black uppercase text-indigo-900 mb-6", itemClass: "bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100" },
+                }}
               />
             </div>
           </div>
@@ -825,13 +788,12 @@ export const CVRenderer = ({
                   "<InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />"
                 </p>
               </div>
-              <LanguagesSection
-                headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6"
-                itemClass="text-sm font-bold text-slate-600"
-              />
-              <SkillsSection
-                headerClass="text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6"
-                itemClass="flex items-center gap-2 text-xs font-bold"
+              <DynamicSidebarSections
+                sidebarKeys={["languages", "skills"]}
+                configs={{
+                  languages: { headerClass: "text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6", itemClass: "text-sm font-bold text-slate-600" },
+                  skills: { headerClass: "text-lg font-black uppercase border-b-2 border-slate-100 pb-2 mb-6", itemClass: "flex items-center gap-2 text-xs font-bold" },
+                }}
               />
             </div>
           </div>
@@ -843,6 +805,11 @@ export const CVRenderer = ({
         <div className="p-10 font-sans bg-white min-h-[297mm]">
           <div className="flex gap-12 mb-10">
             <div className="w-1/3 flex flex-col items-center text-center">
+              {data.photoUrl && (
+                <div className="w-24 h-24 mb-4 rounded-xl overflow-hidden border border-rose-100 shadow-sm">
+                  <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                </div>
+              )}
               <h1 className="text-3xl font-black text-rose-500 leading-tight mb-4">
                 <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
               </h1>
@@ -865,17 +832,13 @@ export const CVRenderer = ({
               />
             </div>
             <div className="col-span-4 flex flex-col gap-12">
-              <ContactSection
-                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6"
-                itemClass="text-xs font-bold text-gray-500"
-              />
-              <LanguagesSection
-                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6"
-                itemClass="text-xs"
-              />
-              <SkillsSection
-                headerClass="text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6"
-                itemClass="bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-[10px] font-bold"
+              <DynamicSidebarSections
+                sidebarKeys={["contact", "languages", "skills"]}
+                configs={{
+                  contact: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "text-xs font-bold text-gray-500" },
+                  languages: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "text-xs" },
+                  skills: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-[10px] font-bold" },
+                }}
               />
             </div>
           </div>
@@ -897,13 +860,12 @@ export const CVRenderer = ({
               headerClass="text-sm font-black uppercase tracking-widest text-slate-400"
               itemClass="text-sm leading-relaxed text-slate-600"
             />
-            <LanguagesSection
-              headerClass="text-sm font-black uppercase tracking-widest text-slate-400 mb-4"
-              itemClass="text-sm"
-            />
-            <SkillsSection
-              headerClass="text-sm font-black uppercase tracking-widest text-slate-400"
-              itemClass="bg-slate-100 px-3 py-1 font-bold text-xs rounded-full"
+            <DynamicSidebarSections
+              sidebarKeys={["languages", "skills"]}
+              configs={{
+                languages: { headerClass: "text-sm font-black uppercase tracking-widest text-slate-400 mb-4", itemClass: "text-sm" },
+                skills: { headerClass: "text-sm font-black uppercase tracking-widest text-slate-400", itemClass: "bg-slate-100 px-3 py-1 font-bold text-xs rounded-full" },
+              }}
             />
           </div>
         </div>
@@ -913,6 +875,11 @@ export const CVRenderer = ({
       {style === "Astra" && (
         <div className="p-12 font-serif bg-white text-[#1a1a1a]">
           <header className="text-center mb-10">
+            {data.photoUrl && (
+              <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border border-gray-200">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
             <h1 className="text-4xl font-bold mb-2 tracking-tight"><InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} /></h1>
             <p className="text-lg text-gray-600 italic mb-4"><InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
             {headers.contact && (
@@ -932,13 +899,346 @@ export const CVRenderer = ({
               headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-6"
               itemClass="text-sm text-gray-700 leading-relaxed"
             />
-            <LanguagesSection
-              headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4"
-              itemClass="text-sm"
+            <DynamicSidebarSections
+              sidebarKeys={["languages", "skills"]}
+              configs={{
+                languages: { headerClass: "text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4", itemClass: "text-sm" },
+                skills: { headerClass: "text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4", itemClass: "text-sm text-gray-700" },
+              }}
             />
-            <SkillsSection
-              headerClass="text-sm font-bold uppercase tracking-widest border-b-2 border-black pb-1 mb-4"
-              itemClass="text-sm text-gray-700"
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: PRISM --- */}
+      {style === "Prism" && (
+        <div className="flex min-h-[297mm] font-sans bg-white">
+          <div className="w-[28%] bg-[#ebebeb] p-8 flex flex-col gap-8 text-slate-800">
+            {data.photoUrl && (
+              <div className="w-28 h-28 mx-auto rounded-full overflow-hidden border-[3px] border-pink-400 shadow-md">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <section>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-pink-600 border-b border-pink-300 pb-2 mb-3">Profil</h3>
+              <p className="text-[11px] leading-relaxed text-slate-600">
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+              </p>
+            </section>
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "languages", "skills"]}
+              configs={{
+                contact: { headerClass: "text-[10px] font-black uppercase tracking-widest text-slate-700 border-b border-slate-300 pb-2", itemClass: "text-[10px] text-slate-600" },
+                languages: { headerClass: "text-[10px] font-black uppercase tracking-widest text-pink-600 border-b border-pink-300 pb-2", itemClass: "text-[10px] text-slate-600" },
+                skills: { headerClass: "text-[10px] font-black uppercase tracking-widest text-pink-600 border-b border-pink-300 pb-2", itemClass: "text-[9px] bg-white px-2 py-1 rounded border border-pink-200 text-slate-700" },
+              }}
+            />
+          </div>
+          <div className="flex-1 p-10 relative">
+            <div className="absolute top-0 right-0 w-28 h-28 bg-pink-200/50 rounded-bl-[3rem]" />
+            <div className="absolute top-4 left-4 w-16 h-16 bg-slate-200/60 rotate-12" />
+            <header className="border-2 border-slate-900 p-6 mb-10 text-center relative z-10 bg-white">
+              <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </h1>
+              <p className="text-sm font-bold text-pink-600 uppercase tracking-[0.25em] mt-2">
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </p>
+            </header>
+            <DynamicMainSections
+              headerClass="text-[10px] font-black uppercase tracking-[0.3em] text-pink-600 mb-6 border-b-2 border-pink-200 pb-2"
+              itemClass="text-[11px] leading-relaxed text-slate-600"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: MERIDIAN --- */}
+      {style === "Meridian" && (
+        <div className="min-h-[297mm] font-sans bg-white p-12">
+          <header className="border-b-4 border-[#2563eb] pb-6 mb-10 flex justify-between items-end gap-6">
+            <div>
+              <h1 className="text-4xl font-black text-[#1e40af] tracking-tight">
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </h1>
+              <p className="text-lg font-bold text-[#3b82f6] mt-1">
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </p>
+            </div>
+            {headers.contact && (
+              <div className="text-right text-[10px] font-bold text-slate-500 space-y-1 shrink-0">
+                <p><InlineEdit value={contact.email} path="contact.email" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
+                <p><InlineEdit value={contact.phone} path="contact.phone" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
+                <p><InlineEdit value={contact.location} path="contact.location" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
+              </div>
+            )}
+          </header>
+          <DynamicMainSections
+            headerClass="text-sm font-black uppercase text-[#2563eb] mb-6 border-l-4 border-[#2563eb] pl-3"
+            itemClass="text-sm text-slate-600 leading-relaxed"
+          />
+          <div className="mt-10 grid grid-cols-2 gap-10">
+            <SkillsSection headerClass="text-sm font-black uppercase text-[#2563eb] mb-4" itemClass="text-xs font-bold text-slate-700 bg-blue-50 px-2 py-1 rounded" />
+            <LanguagesSection headerClass="text-sm font-black uppercase text-[#2563eb] mb-4" itemClass="text-xs text-slate-600" />
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: CLASSIC --- */}
+      {style === "Classic" && (
+        <div className="min-h-[297mm] font-serif bg-white p-14 text-slate-900">
+          <header className="text-center border-b border-slate-300 pb-8 mb-8">
+            {data.photoUrl && (
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full overflow-hidden border border-slate-300">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <h1 className="text-4xl font-bold tracking-wide mb-2">
+              <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+            </h1>
+            <p className="text-lg italic text-slate-600 mb-4">
+              <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+            </p>
+            <div className="flex flex-wrap justify-center gap-4 text-xs text-slate-500 font-sans">
+              <span><InlineEdit value={contact.email} path="contact.email" isInteractive={isInteractive} onUpdate={onUpdate} /></span>
+              <span>•</span>
+              <span><InlineEdit value={contact.phone} path="contact.phone" isInteractive={isInteractive} onUpdate={onUpdate} /></span>
+              <span>•</span>
+              <span><InlineEdit value={contact.location} path="contact.location" isInteractive={isInteractive} onUpdate={onUpdate} /></span>
+            </div>
+          </header>
+          <section className="mb-8 pb-6 border-b border-slate-200 font-sans">
+            <SectionTitle sectionKey="summary" className="text-center text-sm font-bold uppercase tracking-[0.3em] mb-4" />
+            <p className="text-sm text-center leading-relaxed text-slate-600 max-w-2xl mx-auto">
+              <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+            </p>
+          </section>
+          <div className="font-sans">
+            <DynamicMainSections
+              headerClass="text-center text-xs font-bold uppercase tracking-[0.35em] border-b border-slate-300 pb-2 mb-6 mt-8"
+              itemClass="text-sm text-slate-700 leading-relaxed"
+            />
+            <div className="grid grid-cols-2 gap-12 mt-8 pt-6 border-t border-slate-200">
+              <SkillsSection headerClass="text-center text-xs font-bold uppercase tracking-[0.35em] border-b border-slate-300 pb-2 mb-4" itemClass="text-xs text-slate-600 block text-center" layout="list" />
+              <LanguagesSection headerClass="text-center text-xs font-bold uppercase tracking-[0.35em] border-b border-slate-300 pb-2 mb-4" itemClass="text-xs text-slate-600 text-center" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: NAVY --- */}
+      {style === "Navy" && (
+        <div className="flex min-h-[297mm] font-sans">
+          <div className="w-[34%] bg-[#1e3a5f] text-white p-8 flex flex-col gap-8 relative">
+            <div className="absolute top-0 right-0 w-2 h-full bg-[#fbbf24]" />
+            {data.photoUrl && (
+              <div className="w-36 h-36 mx-auto overflow-hidden border-4 border-[#fbbf24] shadow-xl">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "languages", "skills"]}
+              configs={{
+                contact: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[11px] text-white/90" },
+                languages: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[11px] text-white" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[10px] bg-white/10 px-2 py-1 rounded text-white" },
+              }}
+            />
+            <section>
+              <h3 className="text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2 mb-3">Profil</h3>
+              <p className="text-[11px] leading-relaxed text-white/85">
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+              </p>
+            </section>
+          </div>
+          <div className="flex-1 p-12 bg-white flex flex-col gap-10">
+            <header className="border-b-2 border-[#1e3a5f] pb-6">
+              <h1 className="text-4xl font-black text-[#1e3a5f] uppercase tracking-tight">
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </h1>
+              <p className="text-lg font-bold text-[#fbbf24] mt-2 uppercase tracking-widest">
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </p>
+            </header>
+            <DynamicMainSections
+              headerClass="text-sm font-black uppercase text-[#1e3a5f] mb-6 border-l-4 border-[#fbbf24] pl-3"
+              itemClass="text-sm text-slate-600 leading-relaxed"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: VERTEX --- */}
+      {style === "Vertex" && (
+        <div className="min-h-[297mm] font-sans bg-white">
+          <header className="bg-[#1e3a8a] text-white px-10 py-8 flex items-center gap-8 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "12px 12px" }} />
+            {data.photoUrl && (
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 shrink-0 relative z-10">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="relative z-10 flex-1">
+              <h1 className="text-4xl font-black tracking-tight">
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </h1>
+              <p className="text-lg font-medium opacity-90 mt-1">
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </p>
+            </div>
+            <div className="relative z-10 text-right text-xs space-y-1 opacity-90 shrink-0">
+              <p><InlineEdit value={contact.email} path="contact.email" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
+              <p><InlineEdit value={contact.phone} path="contact.phone" isInteractive={isInteractive} onUpdate={onUpdate} /></p>
+            </div>
+          </header>
+          <div className="p-10 grid grid-cols-12 gap-10">
+            <div className="col-span-4 flex flex-col gap-8">
+              <section className="bg-slate-50 p-6 rounded-xl">
+                <SectionTitle sectionKey="summary" className="text-xs font-black uppercase text-[#1e3a8a] mb-3" />
+                <p className="text-xs leading-relaxed text-slate-600">
+                  <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+                </p>
+              </section>
+              <DynamicSidebarSections
+                sidebarKeys={["languages", "skills"]}
+                configs={{
+                  languages: { headerClass: "text-xs font-black uppercase text-[#1e3a8a] mb-3", itemClass: "text-xs text-slate-600" },
+                  skills: { headerClass: "text-xs font-black uppercase text-[#1e3a8a] mb-3", itemClass: "text-[10px] bg-blue-50 text-blue-800 px-2 py-1 rounded font-bold" },
+                }}
+              />
+            </div>
+            <div className="col-span-8">
+              <DynamicMainSections
+                headerClass="text-sm font-black uppercase text-[#1e3a8a] mb-6 border-b-2 border-blue-100 pb-2"
+                itemClass="text-sm text-slate-600 leading-relaxed"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: VERDE --- */}
+      {style === "Verde" && (
+        <div className="min-h-[297mm] font-sans bg-white">
+          <div className="h-28 bg-[#16a34a] relative">
+            {data.photoUrl && (
+              <div className="absolute left-10 -bottom-12 w-28 h-28 rounded-xl overflow-hidden border-4 border-white shadow-xl">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+          <div className="px-12 pt-16 pb-10">
+            <header className="flex justify-between items-start border-b border-slate-200 pb-6 mb-8">
+              <div className={data.photoUrl ? "pl-36" : ""}>
+                <h1 className="text-4xl font-black text-slate-900">
+                  <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+                </h1>
+                <p className="text-lg font-bold text-[#16a34a] mt-1">
+                  <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+                </p>
+              </div>
+              <ContactSection headerClass="text-[10px] font-black uppercase text-[#16a34a]" itemClass="text-xs text-slate-600 text-right" />
+            </header>
+            <section className="mb-8">
+              <SectionTitle sectionKey="summary" className="text-sm font-black uppercase text-[#16a34a] border-b-2 border-green-100 pb-2 mb-4" />
+              <p className="text-sm text-slate-600 leading-relaxed">
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+              </p>
+            </section>
+            <DynamicMainSections
+              headerClass="text-sm font-black uppercase text-[#16a34a] mb-6 border-b-2 border-green-100 pb-2"
+              itemClass="text-sm text-slate-600 leading-relaxed"
+            />
+            <div className="mt-8 grid grid-cols-2 gap-8">
+              <LanguagesSection headerClass="text-sm font-black uppercase text-[#16a34a] mb-4" itemClass="text-xs text-slate-600" />
+              <SkillsSection headerClass="text-sm font-black uppercase text-[#16a34a] mb-4" itemClass="text-xs font-bold text-slate-700" layout="list" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: ROSE --- */}
+      {style === "Rose" && (
+        <div className="flex min-h-[297mm] font-sans border-l-[10px] border-t-[10px] border-[#ec4899] bg-white">
+          <div className="w-[32%] p-8 flex flex-col gap-8 border-r border-pink-100">
+            {data.photoUrl && (
+              <div className="w-full aspect-[4/5] overflow-hidden border-2 border-[#ec4899]">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "education", "skills"]}
+              configs={{
+                contact: { headerClass: "text-xs font-black uppercase text-[#ec4899] border-b-2 border-pink-200 pb-2", itemClass: "text-[11px] text-slate-600" },
+                education: { headerClass: "text-xs font-black uppercase text-[#ec4899] border-b-2 border-pink-200 pb-2", itemClass: "text-[11px] text-slate-600 mb-4" },
+                skills: { headerClass: "text-xs font-black uppercase text-[#ec4899] border-b-2 border-pink-200 pb-2", itemClass: "text-[10px] font-bold text-slate-700" },
+              }}
+            />
+            <LanguagesSection headerClass="text-xs font-black uppercase text-[#ec4899] border-b-2 border-pink-200 pb-2" itemClass="text-[11px] text-slate-600" />
+          </div>
+          <div className="flex-1 p-10 flex flex-col gap-8">
+            <header>
+              <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">
+                <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </h1>
+              <div className="h-1 w-24 bg-[#ec4899] my-3" />
+              <p className="text-lg font-bold text-[#ec4899] uppercase tracking-widest">
+                <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+              </p>
+            </header>
+            <section>
+              <h3 className="text-sm font-black uppercase text-[#ec4899] border-b-2 border-pink-200 pb-2 mb-4">Profil</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+              </p>
+            </section>
+            <DynamicMainSections
+              headerClass="text-sm font-black uppercase text-[#ec4899] mb-6 border-b-2 border-pink-200 pb-2"
+              itemClass="text-sm text-slate-600 leading-relaxed"
+            />
+            <ProjectsSection headerClass="text-sm font-black uppercase text-[#ec4899] mb-4 border-b-2 border-pink-200 pb-2" itemClass="mb-4" />
+          </div>
+        </div>
+      )}
+
+      {/* --- STYLE: AZURE --- */}
+      {style === "Azure" && (
+        <div className="flex min-h-[297mm] font-sans">
+          <div className="w-[30%] bg-[#dbeafe] p-8 flex flex-col gap-8 text-slate-800">
+            {data.photoUrl && (
+              <div className="w-28 h-28 mx-auto overflow-hidden border-2 border-[#3b82f6] shadow-md">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "languages", "skills"]}
+              configs={{
+                contact: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[10px] text-slate-700" },
+                languages: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[10px] text-slate-700" },
+                skills: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[9px] bg-white px-2 py-1 rounded text-slate-700 font-bold" },
+              }}
+            />
+          </div>
+          <div className="flex-1 p-12 flex flex-col gap-10 bg-white">
+            <header className="flex gap-6 items-center border-b-2 border-[#3b82f6] pb-6">
+              <div>
+                <h1 className="text-3xl font-black text-[#1e40af]">
+                  <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
+                </h1>
+                <p className="text-base font-bold text-[#3b82f6] mt-1">
+                  <InlineEdit value={title} path="jobTitle" isInteractive={isInteractive} onUpdate={onUpdate} />
+                </p>
+              </div>
+            </header>
+            <section>
+              <SectionTitle sectionKey="summary" className="text-sm font-black uppercase text-[#1d4ed8] mb-4" />
+              <p className="text-sm text-slate-600 leading-relaxed">
+                <InlineEdit value={summaryText} path="summary" isInteractive={isInteractive} onUpdate={onUpdate} multiline />
+              </p>
+            </section>
+            <DynamicMainSections
+              headerClass="text-sm font-black uppercase text-[#1d4ed8] mb-6 bg-blue-50 px-3 py-2 border-l-4 border-[#3b82f6]"
+              itemClass="text-sm text-slate-600 leading-relaxed px-1"
             />
           </div>
         </div>
@@ -948,18 +1248,18 @@ export const CVRenderer = ({
       {style === "Europass" && (
         <div className="flex min-h-[297mm] font-sans text-slate-800">
           <div className="cv-readable-sidebar w-[32%] bg-[#0065a2] text-white p-8 flex flex-col gap-10">
-            <ContactSection
-              headerClass="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] font-medium text-white"
-            />
-            <LanguagesSection
-              headerClass="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] text-white"
-            />
-            <SkillsSection
-              headerClass="text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2"
-              itemClass="text-[11px] flex items-start gap-2 text-white"
-              layout="list"
+            {data.photoUrl && (
+              <div className="w-32 h-32 rounded-sm overflow-hidden border-2 border-white/30 mx-auto">
+                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <DynamicSidebarSections
+              sidebarKeys={["contact", "languages", "skills"]}
+              configs={{
+                contact: { headerClass: "text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] font-medium text-white" },
+                languages: { headerClass: "text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] text-white" },
+                skills: { headerClass: "text-[13px] font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] flex items-start gap-2 text-white", layout: "list" },
+              }}
             />
           </div>
           <div className="flex-1 p-12 flex flex-col gap-12">

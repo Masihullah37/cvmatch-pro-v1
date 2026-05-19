@@ -4,9 +4,13 @@ const require = createRequire(import.meta.url);
 export async function parseCVFile(buffer: Buffer, filename: string): Promise<string> {
   try {
     const fileExt = filename.toLowerCase();
+    
+    // Detect PDF and DOCX using magic bytes
+    const isPdf = buffer.length >= 4 && buffer.slice(0, 4).toString('ascii') === '%PDF';
+    const isDocx = buffer.length >= 2 && buffer.slice(0, 2).toString('ascii') === 'PK';
 
-    if (fileExt.endsWith('.pdf')) {
-      console.log(`Parsing PDF with pdf2json: ${filename}, Buffer length: ${buffer.length}`);
+    if (fileExt.endsWith('.pdf') || isPdf) {
+      console.log(`Parsing PDF: ${filename} (isPdf: ${isPdf}), Buffer length: ${buffer.length}`);
       
       const PDFParser = require('pdf2json');
       const pdfParser = new (PDFParser.default || PDFParser)(null, 1);
@@ -32,8 +36,8 @@ export async function parseCVFile(buffer: Buffer, filename: string): Promise<str
       });
     }
 
-    if (fileExt.endsWith('.docx') || fileExt.endsWith('.doc')) {
-      console.log(`Parsing Word document with mammoth: ${filename}`);
+    if (fileExt.endsWith('.docx') || fileExt.endsWith('.doc') || isDocx) {
+      console.log(`Parsing Word document: ${filename} (isDocx: ${isDocx})`);
       try {
         const mammoth = require('mammoth');
         const result = await mammoth.extractRawText({ buffer });

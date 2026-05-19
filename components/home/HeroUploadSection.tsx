@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CVUploadPanel from './CVUploadPanel';
 import JobInputPanel from './JobInputPanel';
 import AnalyzeButton from './AnalyzeButton';
 import AnimatedBackground from '../layout/AnimatedBackground';
+import { useAuth } from '@clerk/nextjs';
 
 export default function HeroUploadSection() {
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -12,6 +13,21 @@ export default function HeroUploadSection() {
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [profileDescription, setProfileDescription] = useState('');
+
+  const { userId } = useAuth();
+  const [prevUserId, setPrevUserId] = useState<string | null | undefined>(userId);
+
+  useEffect(() => {
+    // Reset form states if user logs out
+    if (prevUserId && !userId) {
+      setCvFile(null);
+      setCvUrl('');
+      setJobTitle('');
+      setJobDescription('');
+      setProfileDescription('');
+    }
+    setPrevUserId(userId);
+  }, [userId, prevUserId]);
 
   return (
     <div className="w-full mt-12 relative">

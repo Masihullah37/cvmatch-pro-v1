@@ -6,7 +6,9 @@ import { eq } from "drizzle-orm";
 import puppeteer from "puppeteer";
 import React from "react";
 import { CVRenderer } from "@/components/templates/CVRenderer";
-import { pdfRateLimit } from "@/lib/rate-limit/upstash";
+import { pdfHourlyUserLimit, pdfDailyUserLimit, pdfIpLimit } from "@/lib/rate-limit/upstash";
+import { getUserPlan } from "@/lib/billing/get-user-plan";
+import crypto from "crypto";
 
 // CACHE BUSTER: 2026-05-05-V3
 export const dynamic = "force-dynamic";
@@ -41,45 +43,71 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Data not found" }, { status: 404 });
     }
 
-    // 1. Permission check
-    if (userId) {
-      const dbUser = await db.query.users.findFirst({
-        where: eq(users.clerkId, userId),
-      });
-      if (!dbUser)
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
+    // 1. Permission & Plan check
+    const dbUser = userId ? await db.query.users.findFirst({ where: eq(users.clerkId, userId) }) : null;
+    const plan = getUserPlan(dbUser);
 
-      const isOwner = analysis.userId === dbUser.id;
-      const isPro = dbUser.plan === "monthly";
-
-      if (!isOwner && !isPro && !template.isPaid) {
-        return NextResponse.json(
-          { error: "Paiement requis." },
-          { status: 403 },
-        );
-      }
+    if (plan === "free") {
+      return NextResponse.json(
+        { error: "Téléchargement bloqué. Passez au plan payant.", action: "upgrade" },
+        { status: 403 },
+      );
     }
 
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
-    const limitKey = userId ? `pdf_user_${userId}` : `pdf_ip_${ip}`;
-    const { success: pdfOk } = await pdfRateLimit.limit(limitKey);
-
-    if (!pdfOk) {
+    if (plan === "anonymous") {
       return NextResponse.json(
-        { error: "Trop de téléchargements. Réessayez dans 1 heure." },
-        { status: 429 },
+        { error: "Téléchargement bloqué. Connectez-vous.", action: "login" },
+        { status: 401 },
       );
+    }
+
+    const isPro = plan === "pro";
+    
+    if (!isPro && !template.isPaid) {
+      return NextResponse.json(
+        { error: "Débloquez cette analyse pour télécharger le PDF.", action: "unlock" },
+        { status: 403 },
+      );
+    }
+
+    // ✅ Rate limiting
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+    const trackingSalt = process.env.TRACKING_SALT || "default_salt";
+    const hashedIp = crypto.createHash('sha256').update(ip + trackingSalt).digest('hex');
+
+    if (userId) {
+      const [hourly, daily] = await Promise.all([
+        pdfHourlyUserLimit.limit(userId),
+        pdfDailyUserLimit.limit(userId),
+      ]);
+
+      if (!hourly.success || !daily.success) {
+        return NextResponse.json(
+          { error: "Limite de téléchargement atteinte." },
+          { status: 429 },
+        );
+      }
+    } else {
+      const ipLimit = await pdfIpLimit.limit(hashedIp);
+      if (!ipLimit.success) {
+        return NextResponse.json(
+          { error: "Limite de téléchargement atteinte pour cette IP." },
+          { status: 429 },
+        );
+      }
     }
 
     // 2. Browser Launch
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: puppeteer.executablePath(),
+      timeout: 60000,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--font-render-hinting=none",
         "--disable-dev-shm-usage",
+        "--disable-gpu",
       ],
     });
 

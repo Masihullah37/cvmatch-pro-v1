@@ -1,37 +1,23 @@
-// import { createUploadthing, type FileRouter } from "uploadthing/next";
-
-// const f = createUploadthing();
-
-// // FileRouter for your app, can contain multiple FileRoutes
-// export const ourFileRouter = {
-//   // Define as many FileRoutes as you like, each with a unique routeSlug
-//   cvUploader: f({ pdf: { maxFileSize: "4MB" }, "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxFileSize: "4MB" } })
-//     // Set permissions and file types for this FileRoute
-//     .middleware(async ({ req }) => {
-//       // This code runs on your server before upload
-//       // In a real app, you might want to associate the file with a user or guest session
-//       return {  };
-//     })
-//     .onUploadComplete(async ({ metadata, file }) => {
-//       // This code RUNS ON YOUR SERVER after upload
-//       console.log("Upload complete for url:", file.url);
-//       return { url: file.url };
-//     }),
-// } satisfies FileRouter;
-
-// export type OurFileRouter = typeof ourFileRouter;
-
-
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { UTApi } from "uploadthing/server"; // Import this!
+import { UTApi } from "uploadthing/server";
 
 const f = createUploadthing();
 
 export const ourFileRouter = {
-  // ... your routes ...
+  cvUploader: f({
+    pdf: { maxFileSize: "8MB", maxFileCount: 1 },
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxFileSize: "8MB", maxFileCount: 1 },
+    "application/msword": { maxFileSize: "8MB", maxFileCount: 1 }
+  })
+    .middleware(async () => {
+      return {};
+    })
+    .onUploadComplete(async ({ file }) => {
+      console.log("Upload complete for url:", file.url);
+      return { url: file.url };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
 
-// ADD THIS EXPORT:
 export const utapi = new UTApi();

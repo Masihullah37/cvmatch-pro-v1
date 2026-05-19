@@ -19,7 +19,7 @@ export default function JobInputPanel({
   const t = useTranslations('Index.job_panel');
 
   return (
-    <div className="glass-card rounded-[2.5rem] p-8 shadow-2xl flex flex-col h-full animate-in fade-in duration-700 delay-150">
+    <div className="glass-card rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-2xl flex flex-col h-full animate-in fade-in duration-700 delay-150">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="bg-primary/10 text-primary p-3 rounded-2xl">
@@ -47,7 +47,7 @@ export default function JobInputPanel({
             placeholder={t('title_placeholder')}
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
-            className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm font-bold focus:ring-4 focus:ring-primary/10 outline-none text-slate-700 placeholder:text-slate-300 transition-all"
+            className="w-full bg-slate-50 border-none rounded-xl sm:rounded-2xl px-4 py-3 sm:px-6 sm:py-4 text-sm font-bold focus:ring-4 focus:ring-primary/10 outline-none text-slate-700 placeholder:text-slate-300 transition-all"
           />
         </div>
 
@@ -60,7 +60,7 @@ export default function JobInputPanel({
             placeholder={t('description_placeholder')}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="w-full flex-1 min-h-[250px] bg-slate-50 border-none rounded-[2rem] px-6 py-6 text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700 placeholder:text-slate-300 transition-all"
+            className="w-full flex-1 min-h-[200px] sm:min-h-[250px] bg-slate-50 border-none rounded-xl sm:rounded-[2rem] px-4 py-4 sm:px-6 sm:py-6 text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700 placeholder:text-slate-300 transition-all"
           />
         </div>
       </div>

@@ -31,7 +31,7 @@ const plans = [
   },
   {
     name: "Pack Starter",
-    price: "2,90€",
+    price: "3,90€",
     period: "paiement unique",
     desc: "5 CVs optimisés, sans abonnement",
     color: "border-primary",
@@ -42,7 +42,7 @@ const plans = [
       "12 modèles de styles différents",
       "Éditeur de CV intégré",
       "Téléchargement PDF illimité",
-      "Valable 45 jours",
+      "Valable 30 jours",
     ],
     cta: "Obtenir le Pack",
     ctaStyle:

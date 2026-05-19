@@ -1,10 +1,9 @@
 'use client';
 
-import { performCVAnalysis } from '@/app/actions/analysis';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Sparkles, AlertCircle, X } from 'lucide-react';
+import { Sparkles, AlertCircle, X, Lock } from 'lucide-react';
 import OuiCVLoader from '@/components/common/OuiCVLoader';
 
 interface AnalyzeButtonProps {
@@ -26,6 +25,8 @@ export default function AnalyzeButton({
   const locale = useLocale();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [limitMessage, setLimitMessage] = useState("");
 
   // Auto-clear error after 8 seconds
   useEffect(() => {
@@ -46,16 +47,58 @@ export default function AnalyzeButton({
 
     setIsAnalyzing(true);
     try {
-      const formData = new FormData();
-      if (cvFile) formData.append('cvFile', cvFile);
-      if (cvUrl) formData.append('cvUrl', cvUrl);
-      if (profileDescription) formData.append('profileDescription', profileDescription);
-      
-      formData.append('jobTitle', jobTitle);
-      formData.append('jobDescription', jobDescription);
+      let finalCvUrl = cvUrl;
+      let finalCvName = cvFile ? cvFile.name : undefined;
 
-      const analysisId = await performCVAnalysis(formData);
-      router.push(`/${locale}/results/${analysisId}`);
+      // 1. If cvFile is uploaded locally, upload it to Uploadthing first
+      if (cvFile) {
+        const { uploadFiles } = await import('@/lib/uploadthing');
+        const res = await uploadFiles('cvUploader', {
+          files: [cvFile],
+        });
+        if (res && res[0]) {
+          finalCvUrl = res[0].url;
+          finalCvName = res[0].name;
+        } else {
+          throw new Error("Erreur lors de l'envoi du CV. Veuillez réessayer.");
+        }
+      }
+
+      // 2. Make standard application/json fetch request directly to /api/analyze-cv
+      const payload = {
+        cvUrl: finalCvUrl || undefined,
+        cvName: finalCvName || undefined,
+        profileDescription: profileDescription || undefined,
+        jobTitle: jobTitle || undefined,
+        jobDescription: jobDescription,
+        locale: locale,
+      };
+
+      const response = await fetch('/api/analyze-cv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          setLimitMessage(data.error || "Limite quotidienne d'analyses gratuite atteinte.");
+          setIsLimitModalOpen(true);
+          setIsAnalyzing(false);
+          return;
+        }
+        throw new Error(data.error || data.message || "Une erreur est survenue lors de l'analyse.");
+      }
+
+      if (data && data.analysisId) {
+        router.push(`/${locale}/results/${data.analysisId}`);
+      } else {
+        throw new Error("ID d'analyse manquant dans la réponse.");
+      }
     } catch (err: any) {
       console.error("Analysis failed", err);
       setError(err.message || "Une erreur inattendue est survenue. Veuillez réessayer.");
@@ -65,6 +108,15 @@ export default function AnalyzeButton({
 
   return (
     <div className="w-full flex flex-col items-center gap-6 relative">
+      <style>{`
+        @keyframes heartPump {
+          0%, 100% { transform: scale(1); }
+          30% { transform: scale(1.25); }
+          60% { transform: scale(1.05); }
+          80% { transform: scale(1.2); }
+        }
+      `}</style>
+
       {/* Beautiful Error UI */}
       {error && (
         <div className="absolute -top-32 w-full max-w-[500px] animate-in fade-in slide-in-from-bottom-4 duration-500 z-50">
@@ -90,14 +142,25 @@ export default function AnalyzeButton({
       <button 
         onClick={handleAnalyze}
         disabled={isAnalyzing}
-        className={`group flex items-center justify-center gap-4 w-full max-w-[500px] py-6 rounded-[2.5rem] text-xl font-black shadow-2xl transition-all ${
+        className={`group flex items-center justify-center gap-3 sm:gap-4 w-full max-w-[500px] py-4 sm:py-6 rounded-2xl sm:rounded-[2.5rem] text-base sm:text-xl font-black shadow-2xl transition-all ${
           isAnalyzing 
-            ? 'bg-slate-200 text-slate-400 cursor-not-allowed scale-[0.98]' 
+            ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
             : 'bg-primary text-white hover:bg-emerald-600 hover:scale-[1.03] hover:shadow-emerald-500/30 active:scale-95 transition-all duration-200 shadow-emerald-500/20'
         }`}
       >
         {isAnalyzing ? (
-          <OuiCVLoader size="lg" />
+          <div className="relative flex items-center justify-center">
+            <img
+              src="/ouicvlogo.png"
+              alt="OuiCV Logo Loading"
+              className="mix-blend-multiply"
+              style={{
+                width: "90px",
+                height: "auto",
+                animation: "heartPump 0.6s infinite ease-in-out"
+              }}
+            />
+          </div>
         ) : (
           <Sparkles size={24} className="group-hover:animate-pulse" />
         )}
@@ -108,6 +171,54 @@ export default function AnalyzeButton({
         <p className="text-slate-400 text-xs font-black uppercase tracking-[0.2em] animate-pulse">
           Analyse ATS et optimisation sémantique en cours
         </p>
+      )}
+
+      {/* Stunning Rate Limit Exceeded Modal */}
+      {isLimitModalOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 md:p-6 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] max-w-[500px] w-full p-8 md:p-10 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.18)] relative border border-slate-100 flex flex-col items-center text-center">
+            
+            <button
+              onClick={() => setIsLimitModalOpen(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-all hover:rotate-90 bg-slate-50 hover:bg-slate-100 p-2 rounded-xl"
+            >
+              <X size={16} strokeWidth={2.5} />
+            </button>
+
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-red-100/50">
+              <Lock size={28} strokeWidth={2.5} />
+            </div>
+
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-3">
+              Limite d'analyses atteinte
+            </h3>
+
+            <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8">
+              {limitMessage || "Vous avez atteint votre quota d'analyses quotidiennes. Pour continuer à optimiser vos CV sans limite, passez au plan supérieur."}
+            </p>
+
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={() => {
+                  setIsLimitModalOpen(false);
+                  router.push(`/${locale}/#pricing`);
+                }}
+                className="w-full py-4 px-6 rounded-2xl bg-primary text-white font-black hover:bg-primary/95 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 animate-pulse"
+              >
+                <Sparkles size={18} className="fill-white" />
+                Passer au Plan Pro
+              </button>
+              
+              <button
+                onClick={() => setIsLimitModalOpen(false)}
+                className="w-full py-4 px-6 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold transition-all active:scale-95"
+              >
+                Fermer
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
     </div>
   );

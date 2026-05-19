@@ -36,7 +36,7 @@ export default function TermsPage() {
           </li>
           <li>
             <strong>Pack Starter (Achat Unique) :</strong> Donne droit à <strong>5 crédits</strong>. 
-            Ces crédits sont valables pour une durée de <strong>45 jours</strong> à compter de la date d'achat. 
+            Ces crédits sont valables pour une durée de <strong>30 jours</strong> à compter de la date d'achat. 
             Passé ce délai, les crédits non utilisés expireront automatiquement.
           </li>
         </ul>

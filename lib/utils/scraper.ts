@@ -27,6 +27,20 @@ const SKILL_HINTS = [
   'communication', 'leadership', 'problem solving'
 ];
 
+export const STOP_WORDS = new Set([
+  'avoir', 'faire', 'etre', 'être', 'dans', 'pour', 'avec', 'sans', 'plus', 'moins',
+  'notre', 'votre', 'leur', 'leurs', 'nous', 'vous', 'elles', 'ils', 'chez', 'mais',
+  'full', 'main', 'missions', 'mission', 'profil', 'recherche', 'recherch', 'developper', 'stack',
+  'aide', 'critique', 'dois', 'pro', 'significative', 'contribuer', 'scalabilit', 'rience',
+  'vers', 'sous', 'entre', 'derrière', 'devant', 'comme', 'cette', 'ceci', 'cela', 'quels',
+  'quelles', 'quel', 'quelle', 'tous', 'tout', 'toute', 'toutes',
+  'equipe', 'équipe', 'sein', 'seront', 'disposez', 'confirm', 'confirmé', 'confirmee', 'concepteur', 'veloppement', 'développement',
+  'lequel', 'laquelle', 'lesquels', 'lesquelles', 'dont', 'tres', 'très', 'bien', 'donc', 'alors',
+  'puis', 'quand', 'lorsque', 'pendant', 'apres', 'après', 'avant', 'depuis', 'situé', 'située',
+  'cadre', 'poste', 'rejoindre', 'notre', 'votre', 'leurs', 'nos',
+  'développeur', 'expérience', 'bancaire', 'requise'
+]);
+
 /**
  * Fetches and extracts text content from a job posting URL.
  * Uses the native fetch API (available in Node 18+/Next.js server actions)
@@ -38,199 +52,212 @@ export async function scrapeJobDescription(url: string): Promise<string> {
   const trimmedUrl = url.trim();
   console.log(`[Scraper] Attempting to scrape: ${trimmedUrl}`);
 
-  let html: string;
-
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    let html: string;
 
-    const response = await fetch(trimmedUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept':
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.error(`[Scraper] HTTP ${response.status} for ${trimmedUrl}`);
-      throw new Error(
-        `Le site a renvoyé une erreur HTTP ${response.status}. Le site bloque peut-être les requêtes automatiques.`
-      );
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      throw new Error(
-        "L'URL ne pointe pas vers une page HTML. Veuillez vérifier le lien."
-      );
-    }
-
-    html = await response.text();
-    console.log(`[Scraper] Received ${html.length} chars of HTML`);
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      console.error(`[Scraper] Request timed out for ${trimmedUrl}`);
-      throw new Error(
-        "La requête a expiré (timeout). Le site est peut-être lent ou inaccessible."
-      );
-    }
-    if (error.message && !error.message.includes('fetch')) {
-      throw error;
-    }
-    console.error(`[Scraper] Fetch error for ${trimmedUrl}:`, error.message);
-    throw new Error(
-      `Impossible de se connecter à l'URL : ${error.message || 'erreur réseau inconnue'}`
-    );
-  }
-
-  // ─── Phase 1: Extract structured job content with cheerio ───
-  const $ = cheerio.load(html);
-
-  // Extract the page title (often contains the job title)
-  const pageTitle = $('title').text().trim();
-
-  // Remove noise elements aggressively
-  $(
-    'script, style, noscript, nav, footer, header, iframe, img, svg, video, audio, ' +
-    '.ads, #ads, .cookie-banner, .cookie-consent, .sidebar, aside, ' +
-    '.social-share, .share-buttons, .related-jobs, .similar-jobs, ' +
-    '.comments, .comment-section, .newsletter, .signup-form, ' +
-    '[class*="cookie"], [class*="banner"], [class*="popup"], [class*="modal"], ' +
-    '[class*="share"], [class*="social"], [class*="newsletter"], ' +
-    '[class*="footer"], [class*="header"], [class*="nav"], ' +
-    '[role="navigation"], [role="banner"], [role="contentinfo"], ' +
-    'form:not([class*="apply"])'
-  ).remove();
-
-  // Job-board-specific selectors (ordered from most specific to least)
-  const jobSpecificSelectors = [
-    // Indeed
-    '#jobDescriptionText',
-    '.jobsearch-JobComponent-description',
-    '.jobsearch-jobDescriptionText',
-    // LinkedIn
-    '.show-more-less-html__markup',
-    '.description__text',
-    '.jobs-description__content',
-    // Glassdoor
-    '.jobDescriptionContent',
-    '#JobDescriptionContainer',
-    // Monster
-    '.job-description',
-    '#JobDescription',
-    // Welcome to the Jungle
-    '[data-testid="job-section-description"]',
-    '.sc-bXCLTC', // WTTJ dynamic class fallback
-    // Pole Emploi / France Travail
-    '.description-offre',
-    '.content-offre',
-    '#TexteOffre',
-    // HelloWork
-    '.offer-description',
-    // Apec
-    '.details-post',
-    // Generic
-    '[data-automation="jobDescription"]',
-    '[class*="job-description"]',
-    '[class*="jobDescription"]',
-    '[class*="job_description"]',
-    '[id*="job-description"]',
-    '[id*="jobDescription"]',
-    '[id*="job_description"]',
-    '[itemprop="description"]',
-  ];
-
-  // Try job-specific selectors first
-  let extractedText = '';
-  let matchedSelector = '';
-
-  for (const selector of jobSpecificSelectors) {
-    const element = $(selector);
-    if (element.length > 0) {
-      // Use structured extraction: get text from each paragraph/list item separately
-      const parts: string[] = [];
-      element.find('p, li, h1, h2, h3, h4, h5, h6, div:not(:has(p, li, div))').each((_, el) => {
-        const text = $(el).text().replace(/\s+/g, ' ').trim();
-        if (text.length > 5) parts.push(text);
+      const response = await fetch(trimmedUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
+        },
+        redirect: 'follow',
+        signal: controller.signal,
       });
 
-      if (parts.length > 0) {
-        extractedText = parts.join('\n');
-      } else {
-        extractedText = element.text().replace(/\s+/g, ' ').trim();
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.error(`[Scraper] HTTP ${response.status} for ${trimmedUrl}`);
+        throw new Error(
+          `Le site a renvoyé une erreur HTTP ${response.status}. Le site bloque peut-être les requêtes automatiques.`
+        );
       }
 
-      if (extractedText.length > 100) {
-        matchedSelector = selector;
-        console.log(`[Scraper] Matched job selector "${selector}" with ${extractedText.length} chars`);
-        break;
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        throw new Error(
+          "L'URL ne pointe pas vers une page HTML. Veuillez vérifier le lien."
+        );
       }
+
+      html = await response.text();
+      console.log(`[Scraper] Received ${html.length} chars of HTML`);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error(`[Scraper] Request timed out for ${trimmedUrl}`);
+        throw new Error(
+          "La requête a expiré (timeout). Le site est peut-être lent ou inaccessible."
+        );
+      }
+      if (error.message && !error.message.includes('fetch')) {
+        throw error;
+      }
+      console.error(`[Scraper] Fetch error for ${trimmedUrl}:`, error.message);
+      throw new Error(
+        `Impossible de se connecter à l'URL : ${error.message || 'erreur réseau inconnue'}`
+      );
     }
-  }
 
-  // Semantic fallback: try main/article
-  if (extractedText.length < 100) {
-    const semanticSelectors = ['main article', 'main', 'article', '.content', '#content'];
-    for (const selector of semanticSelectors) {
+    // ─── Phase 1: Extract structured job content with cheerio ───
+    const $ = cheerio.load(html);
+
+    // Extract the page title (often contains the job title)
+    const pageTitle = $('title').text().trim();
+
+    // Remove noise elements aggressively
+    $(
+      'script, style, noscript, nav, footer, header, iframe, img, svg, video, audio, ' +
+      '.ads, #ads, .cookie-banner, .cookie-consent, .sidebar, aside, ' +
+      '.social-share, .share-buttons, .related-jobs, .similar-jobs, ' +
+      '.comments, .comment-section, .newsletter, .signup-form, ' +
+      '[class*="cookie"], [class*="banner"], [class*="popup"], [class*="modal"], ' +
+      '[class*="share"], [class*="social"], [class*="newsletter"], ' +
+      '[class*="footer"], [class*="header"], [class*="nav"], ' +
+      '[role="navigation"], [role="banner"], [role="contentinfo"], ' +
+      'form:not([class*="apply"])'
+    ).remove();
+
+    // Job-board-specific selectors (ordered from most specific to least)
+    const jobSpecificSelectors = [
+      // Indeed
+      '#jobDescriptionText',
+      '.jobsearch-JobComponent-description',
+      '.jobsearch-jobDescriptionText',
+      // LinkedIn
+      '.show-more-less-html__markup',
+      '.description__text',
+      '.jobs-description__content',
+      // Glassdoor
+      '.jobDescriptionContent',
+      '#JobDescriptionContainer',
+      // Monster
+      '.job-description',
+      '#JobDescription',
+      // Welcome to the Jungle
+      '[data-testid="job-section-description"]',
+      '.sc-bXCLTC', // WTTJ dynamic class fallback
+      // Pole Emploi / France Travail
+      '.description-offre',
+      '.content-offre',
+      '#TexteOffre',
+      // HelloWork
+      '.offer-description',
+      // Apec
+      '.details-post',
+      // Generic
+      '[data-automation="jobDescription"]',
+      '[class*="job-description"]',
+      '[class*="jobDescription"]',
+      '[class*="job_description"]',
+      '[id*="job-description"]',
+      '[id*="jobDescription"]',
+      '[id*="job_description"]',
+      '[itemprop="description"]',
+    ];
+
+    // Try job-specific selectors first
+    let extractedText = '';
+    let matchedSelector = '';
+
+    for (const selector of jobSpecificSelectors) {
       const element = $(selector);
       if (element.length > 0) {
+        // Use structured extraction: get text from each paragraph/list item separately
         const parts: string[] = [];
-        element.find('p, li, h1, h2, h3, h4, h5, h6').each((_, el) => {
+        element.find('p, li, h1, h2, h3, h4, h5, h6, div:not(:has(p, li, div))').each((_, el) => {
           const text = $(el).text().replace(/\s+/g, ' ').trim();
           if (text.length > 5) parts.push(text);
         });
+
         if (parts.length > 0) {
           extractedText = parts.join('\n');
         } else {
           extractedText = element.text().replace(/\s+/g, ' ').trim();
         }
+
         if (extractedText.length > 100) {
           matchedSelector = selector;
-          console.log(`[Scraper] Matched semantic selector "${selector}" with ${extractedText.length} chars`);
+          console.log(`[Scraper] Matched job selector "${selector}" with ${extractedText.length} chars`);
           break;
         }
       }
     }
-  }
 
-  // Last resort: body text
-  if (extractedText.length < 50) {
-    extractedText = $('body').text().replace(/\s+/g, ' ').trim();
-    matchedSelector = 'body (fallback)';
-    console.log(`[Scraper] Using body fallback with ${extractedText.length} chars`);
-  }
+    // Semantic fallback: try main/article
+    if (extractedText.length < 100) {
+      const semanticSelectors = ['main article', 'main', 'article', '.content', '#content'];
+      for (const selector of semanticSelectors) {
+        const element = $(selector);
+        if (element.length > 0) {
+          const parts: string[] = [];
+          element.find('p, li, h1, h2, h3, h4, h5, h6').each((_, el) => {
+            const text = $(el).text().replace(/\s+/g, ' ').trim();
+            if (text.length > 5) parts.push(text);
+          });
+          if (parts.length > 0) {
+            extractedText = parts.join('\n');
+          } else {
+            extractedText = element.text().replace(/\s+/g, ' ').trim();
+          }
+          if (extractedText.length > 100) {
+            matchedSelector = selector;
+            console.log(`[Scraper] Matched semantic selector "${selector}" with ${extractedText.length} chars`);
+            break;
+          }
+        }
+      }
+    }
 
-  if (extractedText.length < 30) {
-    throw new Error(
-      "La page ne contient pas assez de texte exploitable. Le contenu est peut-être chargé dynamiquement (JavaScript). Veuillez copier-coller la description manuellement."
-    );
-  }
+    // Last resort: body text
+    if (extractedText.length < 50) {
+      extractedText = $('body').text().replace(/\s+/g, ' ').trim();
+      matchedSelector = 'body (fallback)';
+      console.log(`[Scraper] Using body fallback with ${extractedText.length} chars`);
+    }
 
-  // ─── Phase 2: Clean the extracted text ───
-  const cleanedText = cleanJobText(extractedText, pageTitle);
-  validateScrapedContentQuality(cleanedText);
-  
-  // Cap at 5000 chars for the AI prompt
-  const result = cleanedText.substring(0, 5000);
-  console.log(`[Scraper] Final cleaned text: ${result.length} chars (from ${matchedSelector})`);
-  console.log(`[Scraper] Preview: ${result.substring(0, 300)}...`);
-  return result;
+    if (extractedText.length < 30) {
+      throw new Error(
+        "La page ne contient pas assez de texte exploitable. Le contenu est peut-être chargé dynamiquement (JavaScript). Veuillez copier-coller la description manuellement."
+      );
+    }
+
+    // ─── Phase 2: Clean the extracted text ───
+    const cleanedText = cleanJobText(extractedText, pageTitle);
+    validateScrapedContentQuality(cleanedText);
+    
+    // Cap at 5000 chars for the AI prompt
+    const result = cleanedText.substring(0, 5000);
+    console.log(`[Scraper] Final cleaned text: ${result.length} chars (from ${matchedSelector})`);
+    console.log(`[Scraper] Preview: ${result.substring(0, 300)}...`);
+    return result;
+  } catch (error: any) {
+    console.warn(`[Scraper] Ingestion block/error occurred for ${trimmedUrl}: ${error.message}`);
+    // Return graceful fallback description
+    let hostname = trimmedUrl;
+    try {
+      hostname = new URL(trimmedUrl).hostname;
+    } catch (_) {}
+
+    return `Titre du poste: Offre d'emploi (${hostname})
+
+Description du poste: Cette offre d'emploi est actuellement inaccessible directement en raison de protections anti-bot ou de restrictions d'accès du site. L'analyse et l'optimisation seront effectuées selon les meilleures pratiques générales et sémantiques pour ce type de poste sur la plateforme.`;
+  }
 }
 
 /**
@@ -354,8 +381,8 @@ export function extractStructuredJobDetails(jobDescription: string): StructuredJ
   const keywords = Array.from(
     new Set(
       [...uniqueSkills, ...requirements, ...responsibilities]
-        .flatMap((entry) => entry.toLowerCase().split(/[^a-zA-Z0-9+#.]+/))
-        .filter((token) => token.length >= 4)
+        .flatMap((entry) => entry.toLowerCase().split(/[^\p{L}\d+#.]+/u))
+        .filter((token) => token.length >= 4 && !STOP_WORDS.has(token))
     )
   ).slice(0, 40);
 

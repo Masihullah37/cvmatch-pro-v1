@@ -39,7 +39,7 @@ export default function CVUploadPanel({
   });
 
   return (
-    <div className="glass-card rounded-[2.5rem] p-8 shadow-2xl flex flex-col h-full animate-in fade-in duration-700">
+    <div className="glass-card rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-2xl flex flex-col h-full animate-in fade-in duration-700">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="bg-primary/10 text-primary p-3 rounded-2xl">
@@ -74,7 +74,7 @@ export default function CVUploadPanel({
       {mode === 'upload' ? (
         <div 
           {...getRootProps()} 
-          className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-[2rem] p-10 transition-all ${
+          className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-xl sm:rounded-[2rem] p-6 sm:p-10 transition-all ${
             isDragActive ? 'border-primary bg-primary/5 scale-[0.98]' : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
           } cursor-pointer group`}
         >
@@ -97,7 +97,7 @@ export default function CVUploadPanel({
             </div>
           )}
 
-          <button className="mt-8 bg-primary text-white font-black px-8 py-3.5 rounded-2xl text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+          <button className="mt-6 sm:mt-8 bg-primary text-white font-black px-6 py-3 sm:px-8 sm:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
             Sélectionner un fichier
           </button>
         </div>
@@ -108,7 +108,7 @@ export default function CVUploadPanel({
               value={profileDescription}
               onChange={(e) => setProfileDescription?.(e.target.value)}
               placeholder="Décrivez votre parcours, vos expériences et vos compétences ici... L'IA s'occupera de générer un CV parfaitement adapté."
-              className="w-full h-full min-h-[300px] p-6 bg-slate-50 border-none rounded-[2rem] text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700"
+              className="w-full h-full min-h-[250px] sm:min-h-[300px] p-4 sm:p-6 bg-slate-50 border-none rounded-xl sm:rounded-[2rem] text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700"
             />
             <div className="absolute bottom-6 right-6 flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
               <Sparkles size={14} className="text-accent" />

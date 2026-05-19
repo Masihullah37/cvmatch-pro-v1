@@ -4,16 +4,16 @@ import { db } from "@/lib/db";
 import { cvAnalyses, cvTemplates, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getEffectiveCredits, isUserExpired } from "@/lib/utils/subscription";
+import { getUserPlan } from "@/lib/billing/get-user-plan";
 import { notFound } from "next/navigation";
 import TemplateGrid from "@/components/templates/TemplateGrid";
 import { auth } from "@clerk/nextjs/server";
 import { Sparkles } from "lucide-react";
 import { Link } from "@/i18n/routing";
 
-const STYLES = [
-  "Galaxy", "Eclipse", "Aether", "Hyperion", "Lunar", "Stellar",
-  "Solar", "Nebula", "Cosmos", "Astra", "Horizon", "Europass",
-];
+import { CV_TEMPLATE_STYLES } from "@/lib/cv-template-styles";
+
+const STYLES = [...CV_TEMPLATE_STYLES];
 
 const DEMO_FALLBACK = {
   userName: "Votre Nom",
@@ -27,35 +27,55 @@ const DEMO_FALLBACK = {
   projects: []
 };
 
-async function ensureTemplatesExist(analysisId: string, analysisData: any) {
-  const existing = await db.query.cvTemplates.findMany({
-    where: eq(cvTemplates.analysisId, analysisId),
-  });
-  if (existing.length > 0) return existing;
-
-  // Use AI-optimized data if available, else demo fallback
+function getTemplateContent(analysisData: any) {
   let content = { ...(analysisData?.optimizedData || DEMO_FALLBACK) };
   if (typeof content === "string") {
     try { content = JSON.parse(content); } catch { content = DEMO_FALLBACK; }
   }
-
-  // Strip internal original text before saving to templates
   if ((content as any)._originalCvText) delete (content as any)._originalCvText;
+  return {
+    ...content,
+    contact: content.contact || DEMO_FALLBACK.contact,
+  };
+}
 
-  await Promise.all(
-    STYLES.map((style, i) =>
-      db.insert(cvTemplates).values({
-        analysisId,
-        templateNumber: i + 1,
-        templateStyle: style,
-        templateData: {
-          ...content,
-          contact: content.contact || DEMO_FALLBACK.contact,
-        } as any,
-        isPaid: false,
-      })
-    )
-  );
+async function ensureTemplatesExist(analysisId: string, analysisData: any) {
+  const existing = await db.query.cvTemplates.findMany({
+    where: eq(cvTemplates.analysisId, analysisId),
+  });
+
+  const content = getTemplateContent(analysisData);
+
+  if (existing.length === 0) {
+    await Promise.all(
+      STYLES.map((style, i) =>
+        db.insert(cvTemplates).values({
+          analysisId,
+          templateNumber: i + 1,
+          templateStyle: style,
+          templateData: content as any,
+          isPaid: false,
+        })
+      )
+    );
+  } else {
+    const existingStyles = new Set(existing.map((t) => t.templateStyle));
+    const missing = STYLES.filter((style) => !existingStyles.has(style));
+    if (missing.length > 0) {
+      const maxNumber = Math.max(...existing.map((t) => t.templateNumber ?? 0));
+      await Promise.all(
+        missing.map((style, i) =>
+          db.insert(cvTemplates).values({
+            analysisId,
+            templateNumber: maxNumber + i + 1,
+            templateStyle: style,
+            templateData: content as any,
+            isPaid: false,
+          })
+        )
+      );
+    }
+  }
 
   return await db.query.cvTemplates.findMany({
     where: eq(cvTemplates.analysisId, analysisId),
@@ -86,6 +106,7 @@ export default async function TemplatesPage({
 
   const userCredits = dbUser ? getEffectiveCredits(dbUser) : 0;
   const isExpired = dbUser ? isUserExpired(dbUser) : false;
+  const plan = getUserPlan(dbUser);
 
   const analysisIsPaid = analysis.optimizedData && (
     await db.query.cvTemplates.findFirst({
@@ -164,6 +185,7 @@ export default async function TemplatesPage({
           analysisId={analysisId}
           analysisData={analysis}
           initialTemplate={initialTemplate}
+          plan={plan}
         />
       </div>
     </div>

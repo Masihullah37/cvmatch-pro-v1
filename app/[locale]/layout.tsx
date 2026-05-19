@@ -130,7 +130,7 @@ export default async function LocaleLayout({
   if (!routing.locales.includes(locale as any)) notFound();
   const messages = await getMessages();
   
-  const settings = await getSiteSettings();
+  const settings = await getSiteSettings() as any;
   const activeOffer = settings?.activeOffer?.isActive ? settings.activeOffer : null;
 
   return (

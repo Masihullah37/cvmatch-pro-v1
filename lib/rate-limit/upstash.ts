@@ -1,7 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-const redis = new Redis({
+export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL || "",
   token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
 });
@@ -44,4 +44,52 @@ export const dailyRateLimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(20, "24 h"),
   analytics: true,
   prefix: "cvboost_daily",
+});
+
+// ATS scan — free authenticated: 3/24h
+export const atsDailyFreeLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.fixedWindow(3, "24 h"),
+  analytics: true,
+  prefix: "ats_daily_free",
+});
+
+// ATS scan — anonymous: 3/24h
+export const atsDailyAnonLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.fixedWindow(3, "24 h"),
+  analytics: true,
+  prefix: "ats_daily_anon",
+});
+
+// ATS scan — paid: 10/24h
+export const atsDailyPaidLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.fixedWindow(10, "24 h"),
+  analytics: true,
+  prefix: "ats_daily_paid",
+});
+
+// PDF download — hourly per user: 5/1h
+export const pdfHourlyUserLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "1 h"),
+  analytics: true,
+  prefix: "pdf_hourly",
+});
+
+// PDF download — daily per user: 10/24h
+export const pdfDailyUserLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "24 h"),
+  analytics: true,
+  prefix: "pdf_daily",
+});
+
+// PDF download — hourly per IP: 3/1h
+export const pdfIpLimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "1 h"),
+  analytics: true,
+  prefix: "pdf_ip",
 });

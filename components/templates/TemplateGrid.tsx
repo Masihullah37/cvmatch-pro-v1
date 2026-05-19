@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { deductCreditForAnalysis } from "@/app/actions/analysis";
 import {
   DndContext,
@@ -42,9 +43,8 @@ import {
   CreditCard,
 } from "lucide-react";
 import CVRenderer from "./CVRenderer";
+import { asRecordArray, asStringArray } from "@/components/templates/normalizeCvArrays";
 import OuiCVLoader from "../common/OuiCVLoader";
-import Image from "next/image";
-
 interface Template {
   id: string;
   templateNumber: number;
@@ -62,6 +62,7 @@ interface TemplateGridProps {
   analysisId: string;
   analysisData?: any;
   initialTemplate?: number;
+  plan?: string;
 }
 
 // ── Shared styles & constants ──────────────────────────────────────────────────
@@ -246,13 +247,11 @@ const EditorContent = ({
                 alt="Profil"
                 className="w-20 h-20 rounded-xl object-cover"
               /> */}
-              <Image
-  src={editingData.photoUrl}
-  alt="Profil"
-  width={80}
-  height={80}
-  className="w-20 h-20 rounded-xl object-cover"
-/>
+              <img
+                src={editingData.photoUrl}
+                alt="Profil"
+                className="w-20 h-20 rounded-xl object-cover"
+              />
               <button
                 onClick={() => update("photoUrl", "")}
                 className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg transition-transform hover:scale-110"
@@ -440,7 +439,7 @@ const EditorContent = ({
             deleteSection={deleteSection}
           />
           <div className="space-y-4">
-            {(editingData?.experience || []).map((exp: any, idx: number) => (
+            {asRecordArray(editingData?.experience).map((exp: any, idx: number) => (
               <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm relative group/item">
                 <button
                   onClick={() => removeArr("experience", idx)}
@@ -484,7 +483,7 @@ const EditorContent = ({
             deleteSection={deleteSection}
           />
           <div className="space-y-4">
-            {(editingData?.education || []).map((edu: any, idx: number) => (
+            {asRecordArray(editingData?.education).map((edu: any, idx: number) => (
               <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm relative">
                 <button onClick={() => removeArr("education", idx)} className="absolute top-4 right-4 text-slate-300 hover:text-red-500">
                   <Trash2 size={16} />
@@ -513,7 +512,7 @@ const EditorContent = ({
         <div className={`p-6 md:p-8 border-t border-slate-100 ${sectionColors.skills}`}>
           <SectionHeader
             sectionKey="skills"
-            onAdd={() => update("skills", [...(editingData?.skills || []), ""])}
+            onAdd={() => update("skills", [...asStringArray(editingData?.skills), ""])}
             editingData={editingData}
             update={update}
             confirmingDelete={confirmingDelete}
@@ -521,19 +520,22 @@ const EditorContent = ({
             deleteSection={deleteSection}
           />
           <div className="flex flex-wrap gap-2.5 p-4 bg-white/50 rounded-2xl border border-slate-200 min-h-[60px]">
-            {(editingData?.skills || []).map((skill: string, idx: number) => (
+            {asStringArray(editingData?.skills).map((skill: string, idx: number) => (
               <div key={idx} className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200 group/skill">
                 <input
                   value={skill}
                   onChange={(e) => {
-                    const arr = [...(editingData?.skills || [])];
+                    const arr = [...asStringArray(editingData?.skills)];
                     arr[idx] = e.target.value;
                     update("skills", arr);
                   }}
                   className="text-sm font-bold outline-none w-24 bg-transparent text-slate-700"
                 />
                 <button
-                  onClick={() => update("skills", (editingData?.skills || []).filter((_: any, i: number) => i !== idx))}
+                  onClick={() => {
+                    const arr = asStringArray(editingData?.skills);
+                    update("skills", arr.filter((_: any, i: number) => i !== idx));
+                  }}
                   className="text-slate-300 hover:text-red-500 transition-colors"
                 >
                   <X size={14} />
@@ -556,15 +558,15 @@ const EditorContent = ({
             deleteSection={deleteSection}
           />
           <div className="space-y-3">
-            {(editingData?.languages || []).map((lang: any, idx: number) => (
+            {asRecordArray(editingData?.languages).map((lang: any, idx: number) => (
               <div key={idx} className="flex gap-3 items-center group/lang">
                 <input className={`${inputCls} flex-1 shadow-sm`} placeholder="Langue" value={lang.language || lang.name || ""} onChange={(e) => {
-                  const arr = [...(editingData?.languages || [])];
+                  const arr = [...asRecordArray(editingData?.languages)];
                   arr[idx] = { ...arr[idx], language: e.target.value };
                   update("languages", arr);
                 }} />
                 <input className={`${inputCls} flex-1 shadow-sm`} placeholder="Niveau" value={lang.level || ""} onChange={(e) => {
-                  const arr = [...(editingData?.languages || [])];
+                  const arr = [...asRecordArray(editingData?.languages)];
                   arr[idx] = { ...arr[idx], level: e.target.value };
                   update("languages", arr);
                 }} />
@@ -587,7 +589,7 @@ const EditorContent = ({
             deleteSection={deleteSection}
           />
           <div className="space-y-5">
-            {(editingData?.projects || []).map((proj: any, idx: number) => (
+            {asRecordArray(editingData?.projects).map((proj: any, idx: number) => (
               <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm relative">
                 <button onClick={() => removeArr("projects", idx)} className="absolute top-4 right-4 text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
                 <div>
@@ -749,12 +751,14 @@ export default function TemplateGrid({
   analysisId,
   analysisData,
   initialTemplate,
-}: TemplateGridProps) {
+  plan,
+}: any) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const locale = useLocale();
 
-  const [templates, setTemplates] = useState(initialTemplates);
-  const [userCredits, setUserCredits] = useState(initialUserCredits);
+  const [templates, setTemplates] = useState<any[]>(initialTemplates);
+  const [userCredits, setUserCredits] = useState<number>(initialUserCredits);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [editingData, setEditingData] = useState<any>(null);
@@ -789,6 +793,17 @@ export default function TemplateGrid({
   useEffect(() => {
     if (searchParams.get("payment") === "success" && !hasRefreshed) {
       setHasRefreshed(true);
+      try {
+        const raw = sessionStorage.getItem("cvmatch_checkout_return");
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved.mobileView === "edit") setMobileView("edit");
+          sessionStorage.removeItem("cvmatch_checkout_return");
+        }
+      } catch {
+        /* ignore */
+      }
+      fetch("/api/user/refresh-rate-limits", { method: "POST" }).catch(() => {});
       router.refresh();
     }
   }, [searchParams, router, hasRefreshed]);
@@ -796,7 +811,7 @@ export default function TemplateGrid({
   // Auto-select initial template from URL param
   useEffect(() => {
     if (initialTemplate && initialTemplates.length > 0 && !selectedTemplate) {
-      const tpl = initialTemplates.find(t => t.templateNumber === initialTemplate) || initialTemplates[0];
+      const tpl = initialTemplates.find((t: any) => t.templateNumber === initialTemplate) || initialTemplates[0];
       if (tpl) handleSelectById(tpl.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -810,14 +825,15 @@ export default function TemplateGrid({
     }
   }, [searchParams]);
 
-  const analysisIsPaid = templates.some((t) => t.isPaid);
+  const analysisIsPaid = templates.some((t: any) => t.isPaid);
 
   // Logic for "has access without immediate deduction"
   const isJustPaid = searchParams.get("payment") === "success";
-  const hasPaid = analysisIsPaid || isJustPaid;
+  const isPro = plan === "pro";
+  const hasPaid = analysisIsPaid || isJustPaid || isPro;
 
   const handleSelectById = async (id: string) => {
-    const template = initialTemplates.find((t) => String(t.id) === String(id));
+    const template = initialTemplates.find((t: any) => String(t.id) === String(id));
     if (!template) return;
 
     if (isExpired && !analysisIsPaid) {
@@ -856,12 +872,11 @@ export default function TemplateGrid({
       return acc;
     }, {});
 
-    // Ensure array fields are initialized as arrays if they exist but are not arrays, or if they don't exist
-    if (!Array.isArray(data.languages)) data.languages = [];
-    if (!Array.isArray(data.skills)) data.skills = [];
-    if (!Array.isArray(data.experience)) data.experience = [];
-    if (!Array.isArray(data.education)) data.education = [];
-    if (!Array.isArray(data.projects)) data.projects = [];
+    data.languages = asRecordArray(data.languages);
+    data.skills = asStringArray(data.skills);
+    data.experience = asRecordArray(data.experience);
+    data.education = asRecordArray(data.education);
+    data.projects = asRecordArray(data.projects);
     // Initialize section order if missing
     if (!data.sectionOrder) {
       data.sectionOrder = Object.keys(data.headers).filter(k => k !== 'photoUrl' && k !== 'userName' && k !== 'jobTitle');
@@ -912,12 +927,11 @@ export default function TemplateGrid({
       return acc;
     }, {});
 
-    // Ensure array fields are initialized as arrays if they exist but are not arrays, or if they don't exist
-    if (!Array.isArray(data.languages)) data.languages = [];
-    if (!Array.isArray(data.skills)) data.skills = [];
-    if (!Array.isArray(data.experience)) data.experience = [];
-    if (!Array.isArray(data.education)) data.education = [];
-    if (!Array.isArray(data.projects)) data.projects = [];
+    data.languages = asRecordArray(data.languages);
+    data.skills = asStringArray(data.skills);
+    data.experience = asRecordArray(data.experience);
+    data.education = asRecordArray(data.education);
+    data.projects = asRecordArray(data.projects);
     // Initialize section order if missing
     if (!data.sectionOrder) {
       data.sectionOrder = Object.keys(data.headers).filter(k => k !== 'photoUrl' && k !== 'userName' && k !== 'jobTitle');
@@ -1251,6 +1265,14 @@ export default function TemplateGrid({
 
   return (
     <div>
+      <style>{`
+        @keyframes ouiHeartPump {
+          0%, 100% { transform: scale(1); }
+          30% { transform: scale(1.35); }
+          60% { transform: scale(1.05); }
+          80% { transform: scale(1.25); }
+        }
+      `}</style>
       {/* Payment Success Banner */}
       {showSuccessBanner && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-emerald-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4">
@@ -1277,7 +1299,9 @@ export default function TemplateGrid({
                   disabled={isGeneratingAI}
                   className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 disabled:opacity-60 shadow-lg shadow-purple-500/20"
                 >
-                  {isGeneratingAI ? <OuiCVLoader size="sm" /> : <Sparkles size={18} />}
+                  {isGeneratingAI ? (
+                    <img src="/ouicvlogo.png" alt="" className="mix-blend-multiply" style={{ width: 20, height: 'auto', animation: 'ouiHeartPump 0.6s infinite ease-in-out' }} />
+                  ) : <Sparkles size={18} />}
                   {isGeneratingAI ? "IA en cours..." : "Générer mon CV par IA"}
                 </button>
               )}
@@ -1318,7 +1342,9 @@ export default function TemplateGrid({
                   </div>
                   {hasPaid && (
                     <button onClick={(e) => { e.stopPropagation(); handleDownload(template.id); }} disabled={isGenerating === template.id} className="w-9 h-9 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-colors">
-                      {isGenerating === template.id ? <OuiCVLoader size="sm" /> : <Download size={15} />}
+                      {isGenerating === template.id ? (
+                        <img src="/ouicvlogo.png" alt="" className="mix-blend-multiply" style={{ width: 18, height: 'auto', animation: 'ouiHeartPump 0.6s infinite ease-in-out' }} />
+                      ) : <Download size={15} />}
                     </button>
                   )}
                 </div>
@@ -1358,6 +1384,8 @@ export default function TemplateGrid({
                   if (editingData) await handleSave();
                   if (hasPaid) {
                     handleDownload(selectedTpl.id);
+                  } else if (plan === "anonymous") {
+                    router.push(`/${locale}/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`);
                   } else {
                     setShowPaywall(true);
                   }
@@ -1365,7 +1393,9 @@ export default function TemplateGrid({
                 disabled={!!isGenerating}
                 className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-5 py-2.5 rounded-xl font-black text-sm transition-all disabled:opacity-50 active:scale-95"
               >
-                {isGenerating ? <OuiCVLoader size="sm" /> : (hasPaid ? <Download size={16} /> : <Lock size={16} />)}
+                {isGenerating ? (
+                  <img src="/ouicvlogo.png" alt="" className="mix-blend-multiply" style={{ width: 20, height: 'auto', animation: 'ouiHeartPump 0.6s infinite ease-in-out' }} />
+                ) : (hasPaid ? <Download size={16} /> : <Lock size={16} />)}
                 {isGenerating ? "" : "Télécharger"}
               </button>
             </div>
@@ -1385,6 +1415,8 @@ export default function TemplateGrid({
                   if (editingData) await handleSave();
                   if (hasPaid) {
                     handleDownload(selectedTpl.id);
+                  } else if (plan === "anonymous") {
+                    router.push(`/${locale}/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`);
                   } else {
                     setShowPaywall(true);
                   }
@@ -1531,6 +1563,8 @@ export default function TemplateGrid({
           onClose={() => setShowPaywall(false)}
           analysisId={analysisId}
           templateNumber={selectedTpl?.templateNumber}
+          templateId={selectedTemplate ?? undefined}
+          mobileView={mobileView}
         />
       )}
     </div>

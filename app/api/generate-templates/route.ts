@@ -58,7 +58,8 @@ export async function POST(req: Request) {
       );
     } else {
       // Create them (though ensureTemplatesExist usually does this)
-      const styles = ['Galaxy', 'Eclipse', 'Aether', 'Hyperion', 'Lunar', 'Stellar', 'Solar', 'Nebula', 'Cosmos', 'Astra', 'Horizon', 'Europass'];
+      const { CV_TEMPLATE_STYLES } = await import('@/lib/cv-template-styles');
+      const styles = [...CV_TEMPLATE_STYLES];
       const newTemplates = styles.map((style, i) => ({
         analysisId,
         templateNumber: i + 1,

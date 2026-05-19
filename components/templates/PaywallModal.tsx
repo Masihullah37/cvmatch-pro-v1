@@ -13,10 +13,19 @@ interface PaywallModalProps {
   onClose: () => void;
   analysisId: string;
   templateNumber?: number;
+  templateId?: string;
+  mobileView?: string;
   returnUrl?: string;
 }
 
-export default function PaywallModal({ isOpen, onClose, analysisId, templateNumber }: PaywallModalProps) {
+export default function PaywallModal({
+  isOpen,
+  onClose,
+  analysisId,
+  templateNumber,
+  templateId,
+  mobileView,
+}: PaywallModalProps) {
   const router = useRouter();
   const locale = useLocale();
   const { userId } = useAuth();
@@ -52,6 +61,18 @@ export default function PaywallModal({ isOpen, onClose, analysisId, templateNumb
 
     setLoading(type);
     try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(
+          "cvmatch_checkout_return",
+          JSON.stringify({
+            analysisId,
+            templateNumber: templateNumber ?? null,
+            templateId: templateId ?? null,
+            mobileView: mobileView ?? null,
+            path: window.location.pathname + window.location.search,
+          })
+        );
+      }
       const checkoutUrl = await createCheckoutSession(type, analysisId, locale, templateNumber);
       window.location.href = checkoutUrl;
     } catch (error: any) {
@@ -106,13 +127,13 @@ export default function PaywallModal({ isOpen, onClose, analysisId, templateNumb
                 </div>
 
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black text-slate-900 tracking-tighter">2,90€</span>
+                  <span className="text-5xl font-black text-slate-900 tracking-tighter">3,90€</span>
                 </div>
 
                 <ul className="space-y-5">
                   {[
                     '5 Crédits de génération',
-                    'Valable 45 jours',
+                    'Valable 30 jours',
                     'Aucun filigrane',
                     'CV + Lettre de Motivation',
                     'Analyses ATS incluses'

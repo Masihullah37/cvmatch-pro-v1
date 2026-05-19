@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { resetAnalysisRateLimitsForUser } from "@/lib/rate-limit/reset-user-limits";
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -60,8 +61,8 @@ export async function POST(req: Request) {
         const userId = session.metadata?.userId;
         const analysisId = session.metadata?.analysisId;
 
-        const fortyFiveDaysFromNow = new Date();
-        fortyFiveDaysFromNow.setDate(fortyFiveDaysFromNow.getDate() + 45);
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
         if (session.mode === "payment") {
           await db.insert(payments).values({
@@ -103,8 +104,8 @@ export async function POST(req: Request) {
                 .set({
                   plan: "one_time",
                   credits: (userRecord.credits || 0) + 5,
-                  subscriptionEndsAt: fortyFiveDaysFromNow,
-                  creditsExpiry: fortyFiveDaysFromNow,
+                  subscriptionEndsAt: thirtyDaysFromNow,
+                  creditsExpiry: thirtyDaysFromNow,
                 })
                 .where(eq(users.clerkId, userId));
             } else {
@@ -114,10 +115,11 @@ export async function POST(req: Request) {
                 name: session.customer_details?.name ?? undefined,
                 plan: "one_time",
                 credits: 5,
-                subscriptionEndsAt: fortyFiveDaysFromNow,
-                creditsExpiry: fortyFiveDaysFromNow,
+                subscriptionEndsAt: thirtyDaysFromNow,
+                creditsExpiry: thirtyDaysFromNow,
               });
             }
+            await resetAnalysisRateLimitsForUser(userId);
           }
         }
 
@@ -153,8 +155,6 @@ export async function POST(req: Request) {
             } else {
               await db.insert(users).values({
                 clerkId: userId,
-                // email: session.customer_details?.email ?? undefined,
-                // name: session.customer_details?.name ?? undefined,
                 email:
                   session.customer_details?.email ??
                   session.customer_email ??
@@ -172,6 +172,7 @@ export async function POST(req: Request) {
                 creditsExpiry: periodEnd,
               });
             }
+            await resetAnalysisRateLimitsForUser(userId);
           }
         }
 
@@ -192,7 +193,7 @@ export async function POST(req: Request) {
 
         const periodEnd = new Date(subscription.current_period_end * 1000);
 
-        await db
+        const [renewedUser] = await db
           .update(users)
           .set({
             plan: "monthly",
@@ -201,7 +202,12 @@ export async function POST(req: Request) {
             subscriptionEndsAt: periodEnd,
             creditsExpiry: periodEnd,
           })
-          .where(eq(users.stripeSubscriptionId, subscriptionId));
+          .where(eq(users.stripeSubscriptionId, subscriptionId))
+          .returning({ clerkId: users.clerkId });
+
+        if (renewedUser?.clerkId) {
+          await resetAnalysisRateLimitsForUser(renewedUser.clerkId);
+        }
 
         break;
       }

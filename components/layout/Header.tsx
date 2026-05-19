@@ -10,12 +10,14 @@ import { useAuth } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { Menu, X, ChevronLeft as BackIcon, ChevronRight as ForwardIcon, Plus } from 'lucide-react';
 
 export default function Header() {
   const { userId } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale();
   const isHome = pathname === '/' || pathname === '/fr' || pathname === '/en';
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -46,17 +48,9 @@ export default function Header() {
         {/* Logo */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full group-hover:bg-primary/30 transition-all" />
-              <Image
-                src="/ouicvlogo.png"
-                alt="OuiCV Logo"
-                width={120}
-                height={40}
-                className="relative object-contain group-hover:scale-105 transition-transform"
-                style={{ height: "auto" }}
-              />
-            </div>
+            <span className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors tracking-tight uppercase">
+              {locale === 'en' ? 'Home' : 'Accueil'}
+            </span>
           </Link>
 
 
@@ -67,14 +61,8 @@ export default function Header() {
           <Link href="/#analyze" className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
             <Plus size={14} /> Nouvelle Analyse
           </Link>
-          <Link href="/#pricing" className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
-            Tarifs
-          </Link>
           {userId && (
             <div className="flex items-center gap-6">
-              <Link href="/dashboard" className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
-                Dashboard
-              </Link>
               {isAdmin && (
                 <Link href="/admin" className="text-sm font-black text-white bg-emerald-600 px-4 py-2 rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all">
                   Admin
@@ -104,14 +92,8 @@ export default function Header() {
           <Link href="/#analyze" className="flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all" onClick={() => setMobileOpen(false)}>
             <Plus size={14} /> Nouvelle Analyse
           </Link>
-          <Link href="/#pricing" className="block text-sm font-bold text-emerald-600 py-2" onClick={() => setMobileOpen(false)}>
-            Tarifs
-          </Link>
           {userId && (
             <>
-              <Link href="/dashboard" className="block text-sm font-bold text-emerald-600 py-2" onClick={() => setMobileOpen(false)}>
-                Dashboard
-              </Link>
               {isAdmin && (
                 <Link href="/admin" className="block text-sm font-bold text-emerald-600 py-2" onClick={() => setMobileOpen(false)}>
                   Admin Panel

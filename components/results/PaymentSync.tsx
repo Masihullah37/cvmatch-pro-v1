@@ -27,6 +27,9 @@ export default function PaymentSync({ analysisId }: { analysisId: string }) {
 
       // Stop when templates exist (webhook done) OR after 20s timeout
       if (data.isPaid || attempts > 10) {
+        await fetch("/api/user/refresh-rate-limits", { method: "POST" }).catch(
+          () => {}
+        );
         clearInterval(interval);
         setSyncing(false);
         router.refresh();

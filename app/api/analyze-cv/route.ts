@@ -1,23 +1,29 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { cvAnalyses, users } from "@/lib/db/schema";
-import {
-  strictRateLimit,
-  paidUserRateLimit,
-  dailyRateLimit,
-} from "@/lib/rate-limit/upstash";
+import { redis } from "@/lib/rate-limit/upstash";
 import { analyzeCV, extractRawCVData } from "@/lib/ai/ats-analyzer";
 import { parseCVFile } from "@/lib/ai/cv-parser";
-import { extractStructuredJobDetails } from "@/lib/utils/scraper";
+import { isUrl, scrapeJobDescription, extractStructuredJobDetails } from "@/lib/utils/scraper";
+import { detectATSPlatform, evaluateCVCompatibility } from "@/lib/ats-detection";
 import { z } from "zod";
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
+import { getUserPlan } from "@/lib/billing/get-user-plan";
+import crypto from "crypto";
+import { getHashedTrackingToken } from "@/lib/anonymous-tracking";
 
 const schema = z.object({
-  cvUrl: z.string().url(),
+  cvUrl: z.string().url().optional(),
+  cvName: z.string().optional(),
+  profileDescription: z.string().optional(),
   jobDescription: z.string().min(10),
   jobUrl: z.string().optional(),
   guestSessionId: z.string().optional(),
+  locale: z.string().optional(),
+}).refine((data) => data.cvUrl || data.profileDescription, {
+  message: "Un CV sous forme d'URL ou une description de profil est obligatoire.",
+  path: ["cvUrl"],
 });
 
 // Known bot user-agents
@@ -31,6 +37,18 @@ const BOT_PATTERNS = [
   "postman",
   "insomnia",
 ];
+
+async function incrementFailCount(hashedIp: string, isPaid: boolean) {
+  if (isPaid) return;
+  const failCountKey = `fail_count:${hashedIp}`;
+  const count = await redis.incr(failCountKey);
+  if (count === 1) {
+    await redis.expire(failCountKey, 300); // 5 minutes
+  }
+  if (count > 10) {
+    await redis.set(`soft_block:${hashedIp}`, "1", { ex: 600 }); // 10 minutes
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -52,57 +70,107 @@ export async function POST(req: Request) {
       req.headers.get("x-real-ip") ||
       "anonymous";
 
-    // ✅ Rate limiting — different limits for guest vs paid users
+    // ✅ Compute IP hash for anti-abuse
+    const trackingSalt = process.env.TRACKING_SALT || "default_salt";
+    const hashedIp = crypto.createHash('sha256').update(ip + trackingSalt).digest('hex');
+
+    // ✅ Get user from DB to check plan
+    let dbUser = null;
     if (userId) {
-      // Paid/logged-in user: 20 scans/hour, 20/day
-      const [hourly, daily] = await Promise.all([
-        paidUserRateLimit.limit(`paid_${userId}`),
-        dailyRateLimit.limit(`daily_user_${userId}`),
-      ]);
+      dbUser = await db.query.users.findFirst({
+        where: eq(users.clerkId, userId),
+      });
+    }
 
-      if (!hourly.success) {
+    const plan = getUserPlan(dbUser);
+    const isPaid = plan === "trial" || plan === "pro";
+
+    // ✅ Soft-block check for non-paid users
+    if (!isPaid) {
+      const softBlockKey = `soft_block:${hashedIp}`;
+      const isSoftBlocked = await redis.get(softBlockKey);
+      if (isSoftBlocked) {
         return NextResponse.json(
-          {
-            error: "Limite horaire atteinte. Réessayez dans 1 heure.",
-            reset: hourly.reset,
-          },
-          { status: 429 },
+          { error: "Accès temporairement bloqué pour activité suspecte." },
+          { status: 429 }
         );
       }
+    }
 
-      if (!daily.success) {
+    // ✅ SECURE NATIVE REDIS RATE LIMITS (No high-level wrappers)
+    let limit = 3;
+    let redisKey = "";
+    const hashedToken = await getHashedTrackingToken();
+
+    if (isPaid) {
+      limit = 10;
+      redisKey = `ats_daily_paid_${userId}`;
+    } else if (plan === "free") {
+      limit = 3;
+      redisKey = `ats_daily_free_${userId || "unknown"}`;
+    } else { // anonymous
+      limit = 3;
+      redisKey = `ats_daily_anon_${hashedToken}`;
+    }
+
+    // Check if the anonymous token key is already exhausted for free/anon users
+    // to prevent logging out to bypass limits on the same device.
+    if (!isPaid) {
+      const anonKey = `ats_daily_anon_${hashedToken}`;
+      const anonCount = Number(await redis.get(anonKey)) || 0;
+      if (anonCount >= 3) {
         return NextResponse.json(
           {
-            error: "Limite quotidienne atteinte. Réessayez demain.",
-            reset: daily.reset,
+            error: "Limite d'analyses gratuites atteinte (3 par jour). Veuillez passer à un plan payant pour continuer.",
+            resetAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           },
-          { status: 429 },
+          { status: 429 }
         );
       }
-    } else {
-      // Guest: 5 scans/hour per IP, 20/day per IP
-      const [hourly, daily] = await Promise.all([
-        strictRateLimit.limit(`guest_${ip}`),
-        dailyRateLimit.limit(`daily_guest_${ip}`),
-      ]);
+    }
 
-      if (!hourly.success) {
-        return NextResponse.json(
-          {
-            error: "Limite atteinte. Connectez-vous pour plus d'analyses.",
-            reset: hourly.reset,
-          },
-          { status: 429 },
-        );
+    const count = await redis.incr(redisKey);
+    if (count === 1) {
+      await redis.expire(redisKey, 24 * 60 * 60); // 24 hours
+    }
+
+    // Sync the anonymous tracking token key for free users
+    if (plan === "free") {
+      const anonKey = `ats_daily_anon_${hashedToken}`;
+      const anonCount = await redis.incr(anonKey);
+      if (anonCount === 1) {
+        await redis.expire(anonKey, 24 * 60 * 60);
       }
+    }
 
-      if (!daily.success) {
+    const ttl = await redis.ttl(redisKey);
+    const resetTime = ttl > 0 ? Date.now() + ttl * 1000 : Date.now() + 24 * 60 * 60 * 1000;
+    const resetAt = new Date(resetTime).toISOString();
+
+    if (count > limit) {
+      if (isPaid) {
         return NextResponse.json(
           {
-            error: "Limite quotidienne atteinte.",
-            reset: daily.reset,
+            error: "Limite quotidienne atteinte. Revenez demain.",
+            resetAt
           },
-          { status: 429 },
+          { status: 429 }
+        );
+      } else if (plan === "free") {
+        return NextResponse.json(
+          {
+            error: "Limite d'analyses gratuites atteinte (3 par jour). Veuillez passer à un plan payant pour continuer.",
+            resetAt
+          },
+          { status: 429 }
+        );
+      } else {
+        return NextResponse.json(
+          {
+            error: "Limite d'analyses gratuites atteinte (3 par jour). Veuillez vous connecter ou souscrire à un plan pour continuer.",
+            resetAt
+          },
+          { status: 429 }
         );
       }
     }
@@ -110,8 +178,9 @@ export async function POST(req: Request) {
     // ✅ Content-Type check — must be JSON
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
+      await incrementFailCount(hashedIp, isPaid);
       return NextResponse.json(
-        { error: "Invalid request format." },
+        { error: "Format de requête invalide." },
         { status: 400 },
       );
     }
@@ -121,67 +190,116 @@ export async function POST(req: Request) {
     // ✅ Validate input strictly
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
+      await incrementFailCount(hashedIp, isPaid);
       return NextResponse.json(
         { error: "Données invalides.", details: parsed.error.flatten() },
         { status: 400 },
       );
     }
 
-    const { cvUrl, jobDescription, jobUrl, guestSessionId } = parsed.data;
+    const { cvUrl, cvName, profileDescription, jobDescription, jobUrl, guestSessionId, locale } = parsed.data;
 
-    // ✅ Verify CV URL is from your own uploadthing storage only
-    const allowedHosts = ["utfs.io", "uploadthing.com", "ufs.sh"];
-    const cvHostname = new URL(cvUrl).hostname;
-    if (!allowedHosts.some((h) => cvHostname.includes(h))) {
+    let cvText = "";
+    let originalCvUrlForDb = cvUrl || "";
+
+    // ✅ Parse CV
+    if (cvUrl) {
+      // Verify CV URL is from your own uploadthing storage only
+      const allowedHosts = ["utfs.io", "uploadthing.com", "ufs.sh"];
+      const cvHostname = new URL(cvUrl).hostname;
+      if (!allowedHosts.some((h) => cvHostname.includes(h))) {
+        await incrementFailCount(hashedIp, isPaid);
+        return NextResponse.json(
+          { error: "Source de fichier non autorisée." },
+          { status: 400 },
+        );
+      }
+
+      // Fetch and parse CV
+      const response = await fetch(cvUrl);
+      const arrayBuffer = await response.arrayBuffer();
+
+      // ✅ File size check — max 10MB
+      if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
+        await incrementFailCount(hashedIp, isPaid);
+        return NextResponse.json(
+          { error: "Fichier trop volumineux (max 10MB)." },
+          { status: 400 },
+        );
+      }
+
+      const buffer = Buffer.from(arrayBuffer);
+      cvText = await parseCVFile(buffer, cvName || cvUrl);
+    } else if (profileDescription) {
+      cvText = profileDescription;
+    }
+
+    if (!cvText || cvText.trim().length < 50) {
+      await incrementFailCount(hashedIp, isPaid);
       return NextResponse.json(
-        { error: "Source de fichier non autorisée." },
+        { error: "Le contenu du CV ou du profil est trop court pour être analysé." },
         { status: 400 },
       );
     }
 
-    // ✅ Get user from DB
-    let dbUser = null;
-    if (userId) {
-      dbUser = await db.query.users.findFirst({
-        where: eq(users.clerkId, userId),
-      });
+    // ✅ Scrape Job Description URL if jobDescription is a URL
+    let finalJobDescription = jobDescription;
+    let resolvedJobUrl = jobUrl;
+
+    if (jobDescription && isUrl(jobDescription)) {
+      console.log("=== API /analyze-cv: SCRAPING JOB URL ===");
+      if (!resolvedJobUrl) {
+        resolvedJobUrl = jobDescription;
+      }
+      finalJobDescription = await scrapeJobDescription(jobDescription);
     }
 
-    // Fetch and parse CV
-    const response = await fetch(cvUrl);
-    const arrayBuffer = await response.arrayBuffer();
-
-    // ✅ File size check — max 10MB
-    if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "Fichier trop volumineux (max 10MB)." },
-        { status: 400 },
-      );
-    }
-
-    const buffer = Buffer.from(arrayBuffer);
-    const cvText = await parseCVFile(buffer, cvUrl);
-
-    const structuredJobDetails = extractStructuredJobDetails(jobDescription);
+    // ✅ Run AI analysis
+    const structuredJobDetails = extractStructuredJobDetails(finalJobDescription);
     const analysisResult = await analyzeCV(
       cvText,
-      jobDescription,
+      finalJobDescription,
       structuredJobDetails,
+      locale,
     );
     const rawData = await extractRawCVData(cvText);
 
-    //     // Mock data to test the DB insert
-    // const analysisResult = { atsScore: 85, scoreBreakdown: {}, flaws: [], suggestions: [], keywordsMissing: [], keywordsFound: [] };
-    // const optimizedData = { userName: "Test User", jobTitle: "Developer" };
+    // ✅ ATS Platform Detection & Evaluation
+    const detectedPlatformObj = detectATSPlatform(resolvedJobUrl, finalJobDescription, cvText);
+    const detectedPlatform = detectedPlatformObj ? detectedPlatformObj.name : null;
 
-    // Save to DB
+    // Evaluate CV format compatibility
+    const compatResult = evaluateCVCompatibility(detectedPlatformObj, cvUrl || "cv.txt");
+    if (!compatResult.isCompatible) {
+      // Penalize format score by 10 points
+      if (analysisResult.scoreBreakdown && analysisResult.scoreBreakdown.format) {
+        const originalFormatScore = Number(analysisResult.scoreBreakdown.format.score) || 0;
+        analysisResult.scoreBreakdown.format.score = Math.max(0, originalFormatScore - 10);
+
+        // Recalculate total atsScore
+        let newTotalScore = 0;
+        for (const cat in analysisResult.scoreBreakdown) {
+          newTotalScore += Number(analysisResult.scoreBreakdown[cat].score) || 0;
+        }
+        analysisResult.atsScore = Math.round(newTotalScore);
+      }
+
+      // Add compatibility flaws and suggestions
+      if (!analysisResult.flaws) analysisResult.flaws = [];
+      analysisResult.flaws.push(...compatResult.flaws);
+
+      if (!analysisResult.suggestions) analysisResult.suggestions = [];
+      analysisResult.suggestions.push(...compatResult.suggestions);
+    }
+
+    // ✅ Insert Analysis Record into DB
     const [insertedAnalysis] = await db
       .insert(cvAnalyses)
       .values({
         userId: dbUser?.id,
-        originalCvUrl: cvUrl,
-        jobUrl,
-        jobDescription: jobDescription,
+        originalCvUrl: originalCvUrlForDb,
+        jobUrl: resolvedJobUrl,
+        jobDescription: finalJobDescription,
         atsScore: Math.round(Number(analysisResult.atsScore) || 0),
         scoreBreakdown: analysisResult.scoreBreakdown,
         flaws: analysisResult.flaws,
@@ -196,46 +314,10 @@ export async function POST(req: Request) {
         status: "completed",
         userName: rawData?.userName || "Candidat",
         jobTitle: rawData?.jobTitle || "Poste Visé",
+        // @ts-ignore - detectedPlatform will be recognized after schema reload
+        detectedPlatform: detectedPlatform,
       })
       .returning({ id: cvAnalyses.id });
-
-    // ✅ No template pre-generation here — happens on unlock only
-    // --- ADD THIS PART BACK BELOW ---
-    // ✅ Pre-generate the 12 templates (including Horizon and Astra)
-    // so they are available for the CVRenderer
-    // const styles = [
-    //   "Horizon",
-    //   "Galaxy",
-    //   "Eclipse",
-    //   "Aether",
-    //   "Hyperion",
-    //   "Lunar",
-    //   "Stellar",
-    //   "Solar",
-    //   "Nebula",
-    //   "Cosmos",
-    //   "Astra",
-    //   "Europass",
-    // ];
-
-    // const templateValues = styles.map((style, index) => ({
-    //   analysisId: insertedAnalysis.id,
-    //   templateNumber: index + 1,
-    //   templateStyle: style,
-    //   templateData: optimizedData, // Reuses the AI-generated content
-    //   isPaid: false,
-    // }));
-
-    // await db.insert(cvTemplates).values(templateValues);
-    // // --------------------------------
-
-    // // ✅ Deduction of credit (If you still want to charge per scan)
-    // if (userId) {
-    //   await db
-    //     .update(users)
-    //     .set({ credits: sql`${users.credits} - 1` })
-    //     .where(eq(users.clerkId, userId));
-    // }
 
     return NextResponse.json({ analysisId: insertedAnalysis.id });
   } catch (error: any) {
@@ -246,3 +328,4 @@ export async function POST(req: Request) {
     );
   }
 }
+
