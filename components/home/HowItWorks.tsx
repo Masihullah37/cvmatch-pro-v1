@@ -63,7 +63,7 @@ export default function HowItWorks() {
   }, [visible]);
 
   return (
-    <section ref={ref} className="py-20 px-4 bg-white">
+    <section ref={ref} className="py-20 px-4 bg-transparent">
       <div className="max-w-5xl mx-auto">
 
         {/* Label */}

@@ -128,10 +128,6 @@ export default function CVCarousel({ theme = 'dark' }: CVCarouselProps) {
                   </div>
                 </div>
                 <div style={{ padding: '8px 12px 12px', textAlign: 'center' }}>
-                  <p style={{ color: isDark ? 'white' : '#0f172a', fontWeight: 900, fontSize: 13 }}>{cv.style}</p>
-                  <p style={{ color: accentColor, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginTop: 2 }}>
-                    IA Optimisé
-                  </p>
                 </div>
               </div>
             </div>

@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Menu, X, ChevronLeft as BackIcon, ChevronRight as ForwardIcon, Plus } from 'lucide-react';
+import { Menu, X, ChevronLeft as BackIcon, ChevronRight as ForwardIcon, Plus, Home } from 'lucide-react';
 
 export default function Header() {
   const { userId } = useAuth();
@@ -48,7 +48,8 @@ export default function Header() {
         {/* Logo */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center group">
-            <span className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors tracking-tight uppercase">
+            <span className="text-xl font-black text-slate-900 group-hover:text-primary transition-colors tracking-tight uppercase flex items-center gap-2">
+              <Home size={18} />
               {locale === 'en' ? 'Home' : 'Accueil'}
             </span>
           </Link>

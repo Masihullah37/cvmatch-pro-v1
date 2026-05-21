@@ -63,7 +63,7 @@ export default function HeroSection() {
         display: "flex",
         alignItems: "center",
         overflow: "hidden",
-        background: "white",
+        background: "transparent",
       }}
     >
       {/* Grid background */}

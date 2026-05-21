@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import CVUploadPanel from './CVUploadPanel';
 import JobInputPanel from './JobInputPanel';
 import AnalyzeButton from './AnalyzeButton';
-import AnimatedBackground from '../layout/AnimatedBackground';
 import { useAuth } from '@clerk/nextjs';
 
 export default function HeroUploadSection() {
@@ -31,7 +30,6 @@ export default function HeroUploadSection() {
 
   return (
     <div className="w-full mt-12 relative">
-      <AnimatedBackground />
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
         <JobInputPanel 

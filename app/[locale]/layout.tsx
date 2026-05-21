@@ -135,7 +135,7 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider messages={messages} locale={locale}>
-      <div className={`${font.className} min-h-screen bg-slate-50`}>
+      <div className={`${font.className} min-h-screen bg-white`}>
         <div className="no-print">
           <Sidebar />
         </div>

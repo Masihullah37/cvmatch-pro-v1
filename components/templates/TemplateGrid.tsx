@@ -1334,28 +1334,19 @@ export default function TemplateGrid({
                 className="group bg-white rounded-3xl border border-slate-100 overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
               >
                 <div className="relative bg-slate-50 overflow-hidden" style={{ height: 320 }}>
-                  <div className={`absolute inset-0 flex justify-center items-start pt-6 ${!hasPaid ? "blur-sm" : ""}`}>
+                  <div className={`absolute inset-0 flex justify-center items-start pt-6`}>
                     <div className="scale-[0.38] origin-top transform-gpu">
                       <CVRenderer template={template} isPaid={hasPaid} analysisData={analysisData} />
                     </div>
                   </div>
-                  {!hasPaid && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="bg-white/90 backdrop-blur rounded-2xl px-4 py-2 flex items-center gap-2 shadow-lg">
-                        <Lock size={14} className="text-slate-400" />
-                        <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Verrouillé</span>
-                      </div>
-                    </div>
-                  )}
                   <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors flex items-center justify-center">
                     <span className="bg-white text-slate-900 px-6 py-3 rounded-2xl font-black text-sm opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all shadow-xl flex items-center gap-2">
-                      {hasPaid ? <><Pencil size={15} /> Éditer</> : <><Lock size={15} /> Débloquer</>}
+                      <Pencil size={15} /> Éditer
                     </span>
                   </div>
                 </div>
                 <div className="p-4 flex items-center justify-between border-t border-slate-100">
                   <div>
-                    <p className="font-black text-slate-900">{template.templateStyle}</p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">IA Optimisé</p>
                   </div>
                   {hasPaid && (
@@ -1517,7 +1508,6 @@ export default function TemplateGrid({
                           </div>
                         </div>
                         <div className="p-2 border-t border-slate-200 bg-white">
-                          <p className="font-black text-slate-900 text-xs">{t.templateStyle}</p>
                         </div>
                         {String(t.id) === String(selectedTemplate) && (
                           <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">

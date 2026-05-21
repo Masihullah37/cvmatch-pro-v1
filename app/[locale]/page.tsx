@@ -29,10 +29,12 @@ import HowItWorks from "@/components/home/HowItWorks";
 import PricingSection from "@/components/home/PricingSection";
 import HeroUploadSection from "@/components/home/HeroUploadSection";
 import PaymentSync from "@/components/results/PaymentSync";
+import AnimatedBackground from "@/components/layout/AnimatedBackground";
 
 export default async function HomePage() {
   return (
-    <div className="flex-1 flex flex-col overflow-x-hidden">
+    <div className="flex-1 flex flex-col overflow-x-hidden relative">
+      <AnimatedBackground />
       <PaymentSync />
       <HeroSection />
 
@@ -42,7 +44,7 @@ export default async function HomePage() {
 
       <HowItWorks />
 
-      <CVCarousel />
+      <CVCarousel theme="light" />
 
       {/* <FeaturesSection /> */}
 

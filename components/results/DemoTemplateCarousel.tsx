@@ -85,10 +85,6 @@ export default function DemoTemplateCarousel({ analysisId }: { analysisId: strin
               </div>
               {/* Label */}
               <div className="p-3 border-t border-slate-100">
-                <p className="font-black text-slate-900 text-sm">{template.templateStyle}</p>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                  IA Optimisé
-                </p>
               </div>
             </button>
           ))}
