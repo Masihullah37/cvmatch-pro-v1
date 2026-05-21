@@ -44,6 +44,8 @@ export async function POST(req: Request) {
 
         const paymentIntentId = session.payment_intent as string | null;
         const sessionId = session.id;
+        const userId = session.metadata?.userId;
+        const analysisId = session.metadata?.analysisId;
 
         const existingPayment = paymentIntentId
           ? await db.query.payments.findFirst({
@@ -54,25 +56,58 @@ export async function POST(req: Request) {
           });
 
         if (existingPayment) {
+          if (userId && userId !== "guest") {
+            await resetAnalysisRateLimitsForUser(userId);
+          }
           console.log(`Skipping duplicate event for ${sessionId}`);
           return NextResponse.json({ received: true });
         }
-
-        const userId = session.metadata?.userId;
-        const analysisId = session.metadata?.analysisId;
 
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
         if (session.mode === "payment") {
+          // 1. Update User First (Critical)
+          if (userId && userId !== "guest") {
+            const userRecord = await db.query.users.findFirst({
+              where: eq(users.clerkId, userId),
+            });
+
+            if (userRecord) {
+              await db
+                .update(users)
+                .set({
+                  plan: "one_time",
+                  credits: (userRecord.credits || 0) + 5,
+                  subscriptionEndsAt: thirtyDaysFromNow,
+                  creditsExpiry: thirtyDaysFromNow,
+                  updatedAt: new Date(),
+                })
+                .where(eq(users.clerkId, userId));
+            } else {
+              await db.insert(users).values({
+                clerkId: userId,
+                email: session.customer_details?.email ?? undefined,
+                name: session.customer_details?.name ?? undefined,
+                plan: "one_time",
+                credits: 5,
+                subscriptionEndsAt: thirtyDaysFromNow,
+                creditsExpiry: thirtyDaysFromNow,
+              });
+            }
+          }
+
+          // 2. Track Payment
           await db.insert(payments).values({
             stripeSessionId: session.id,
             stripePaymentIntentId: session.payment_intent as string,
             amount: session.amount_total,
             paymentType: "one_time",
             status: "completed",
+            userId: userId && userId !== "guest" ? userId : undefined, // Track if known
           });
 
+          // 3. Unlock analysis if applicable
           if (analysisId) {
             await db
               .update(cvTemplates)
@@ -93,32 +128,8 @@ export async function POST(req: Request) {
             }
           }
 
+          // 4. Reset Limits (Non-blocking)
           if (userId && userId !== "guest") {
-            const userRecord = await db.query.users.findFirst({
-              where: eq(users.clerkId, userId),
-            });
-
-            if (userRecord) {
-              await db
-                .update(users)
-                .set({
-                  plan: "one_time",
-                  credits: (userRecord.credits || 0) + 5,
-                  subscriptionEndsAt: thirtyDaysFromNow,
-                  creditsExpiry: thirtyDaysFromNow,
-                })
-                .where(eq(users.clerkId, userId));
-            } else {
-              await db.insert(users).values({
-                clerkId: userId,
-                email: session.customer_details?.email ?? undefined,
-                name: session.customer_details?.name ?? undefined,
-                plan: "one_time",
-                credits: 5,
-                subscriptionEndsAt: thirtyDaysFromNow,
-                creditsExpiry: thirtyDaysFromNow,
-              });
-            }
             await resetAnalysisRateLimitsForUser(userId);
           }
         }
@@ -184,14 +195,16 @@ export async function POST(req: Request) {
         const subscriptionId = invoice.subscription as string | null;
         if (!subscriptionId) break;
 
-        const billingReason = invoice.billing_reason;
-        if (billingReason !== "subscription_cycle") break;
-
         const subscription = (await stripe.subscriptions.retrieve(
           subscriptionId,
         )) as any;
 
         const periodEnd = new Date(subscription.current_period_end * 1000);
+        const customerId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer?.id;
+        const metadataUserId = subscription.metadata?.userId;
 
         const [renewedUser] = await db
           .update(users)
@@ -205,8 +218,45 @@ export async function POST(req: Request) {
           .where(eq(users.stripeSubscriptionId, subscriptionId))
           .returning({ clerkId: users.clerkId });
 
-        if (renewedUser?.clerkId) {
-          await resetAnalysisRateLimitsForUser(renewedUser.clerkId);
+        let clerkIdToReset = renewedUser?.clerkId;
+
+        if (!clerkIdToReset && metadataUserId && metadataUserId !== "guest") {
+          const [metadataUser] = await db
+            .update(users)
+            .set({
+              plan: "monthly",
+              credits: 30,
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscriptionId,
+              subscriptionStatus: "active",
+              subscriptionEndsAt: periodEnd,
+              creditsExpiry: periodEnd,
+            })
+            .where(eq(users.clerkId, metadataUserId))
+            .returning({ clerkId: users.clerkId });
+
+          clerkIdToReset = metadataUser?.clerkId;
+        }
+
+        if (!clerkIdToReset && customerId) {
+          const [customerUser] = await db
+            .update(users)
+            .set({
+              plan: "monthly",
+              credits: 30,
+              stripeSubscriptionId: subscriptionId,
+              subscriptionStatus: "active",
+              subscriptionEndsAt: periodEnd,
+              creditsExpiry: periodEnd,
+            })
+            .where(eq(users.stripeCustomerId, customerId))
+            .returning({ clerkId: users.clerkId });
+
+          clerkIdToReset = customerUser?.clerkId;
+        }
+
+        if (clerkIdToReset) {
+          await resetAnalysisRateLimitsForUser(clerkIdToReset);
         }
 
         break;

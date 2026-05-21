@@ -72,7 +72,7 @@ export default function BlurOverlay({ isPaid, analysisId }: BlurOverlayProps) {
                   className="mb-3 text-muted-foreground group-hover:text-primary transition-colors"
                   size={28}
                 />
-                <span className="font-bold text-lg">2.90€</span>
+                <span className="font-bold text-lg">3.90€</span>
                 <span className="text-sm font-medium">Paiement unique</span>
                 <span className="text-xs text-muted-foreground mt-2 text-center">
                   Téléchargez un seul modèle au choix

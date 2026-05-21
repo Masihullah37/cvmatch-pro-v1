@@ -173,7 +173,7 @@ export default function HeroSection() {
               style={{ color: "#475569" }}
             >
               Analysez votre CV par rapport à n'importe quelle offre d'emploi.
-              Obtenez un score ATS, des suggestions précises et générez 12
+              Obtenez un score ATS, des suggestions précises et générez des
               modèles optimisés en quelques secondes.
             </p>
 
@@ -182,7 +182,7 @@ export default function HeroSection() {
               {[
                 "Score ATS instantané",
                 "Mots-clés manquants",
-                "12 CVs optimisés",
+                "CVs optimisés",
               ].map((point) => (
                 <div
                   key={point}

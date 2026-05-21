@@ -106,6 +106,22 @@ export const CVRenderer = ({
   const style = template.templateStyle;
 
   const name = data.userName || analysisData?.userName || "Candidat";
+  const hasTemplatePhotoOverride = Object.prototype.hasOwnProperty.call(data, "photoUrl");
+  const resolvedPhotoUrl = hasTemplatePhotoOverride
+    ? typeof data.photoUrl === "string"
+      ? data.photoUrl.trim()
+      : ""
+    : typeof data.profileDescription?.photoUrl === "string" && data.profileDescription.photoUrl.trim()
+      ? data.profileDescription.photoUrl
+      : typeof template.optimizedData?.photoUrl === "string" && template.optimizedData.photoUrl.trim()
+        ? template.optimizedData.photoUrl
+        : typeof analysisData?.optimizedData?.photoUrl === "string" && analysisData.optimizedData.photoUrl.trim()
+          ? analysisData.optimizedData.photoUrl
+          : typeof analysisData?.profileDescription?.photoUrl === "string" && analysisData.profileDescription.photoUrl.trim()
+            ? analysisData.profileDescription.photoUrl
+            : "";
+  const photoUrl = resolvedPhotoUrl;
+  const hasPhotoSlot = Boolean(photoUrl);
   const title = data.jobTitle || analysisData?.jobTitle || "Optimisé par IA";
   const summaryText =
     data.summary ||
@@ -169,6 +185,16 @@ export const CVRenderer = ({
       )}
     </>
   );
+
+  const ProfilePhoto = ({ className, alt = name }: { className: string; alt?: string }) => {
+    if (!hasPhotoSlot) return null;
+
+    return (
+      <div className={className}>
+        <img src={photoUrl} alt={alt} className="w-full h-full object-cover" />
+      </div>
+    );
+  };
 
   const LanguagesSection = ({ headerClass, itemClass, languages: sectionLanguages = languages, isInteractive: interactive = isInteractive, onDeleteSection: deleteHandler = onDeleteSection, onUpdate: updateHandler = onUpdate, headers: sectionHeaders = headers }: any) => {
     if (!interactive && (!sectionLanguages || sectionLanguages.length === 0)) return null;
@@ -298,10 +324,11 @@ export const CVRenderer = ({
   const IdentityHeader = ({ nameClass, titleClass, containerClass = "", contactContainerClass = "text-right space-y-1 text-[10px] font-bold text-slate-500", showIcons = true, showContact = true, showPhoto = true, name: displayName = name, title: displayTitle = title, contact: contactData = contact, isInteractive: interactive = isInteractive, onUpdate: updateHandler = onUpdate }: any) => (
     <header className={containerClass}>
       <div className="flex items-center gap-6">
-        {showPhoto && data.photoUrl && (
-          <div className="w-24 h-24 shrink-0 overflow-hidden rounded-2xl border-2 border-slate-200/50 shadow-md bg-white">
-            <img src={data.photoUrl} alt="Photo" className="w-full h-full object-cover" />
-          </div>
+        {showPhoto && (
+          <ProfilePhoto
+            className="w-24 h-24 shrink-0 overflow-hidden rounded-2xl border-2 border-slate-200/50 shadow-md bg-white"
+            alt="Photo"
+          />
         )}
         <div>
           <h1 className={nameClass}><InlineEdit value={displayName} path="userName" isInteractive={interactive} onUpdate={updateHandler} /></h1>
@@ -423,10 +450,10 @@ export const CVRenderer = ({
       {style === "Horizon" && (
         <div className="flex min-h-[297mm] w-[210mm] font-sans bg-white">
           <div className="cv-readable-sidebar w-[30%] bg-[#3d3d3d] text-white p-10 flex flex-col gap-10">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-32 h-32 rounded-full border-4 border-white/20 mx-auto overflow-hidden shadow-2xl">
                 <img
-                  src={data.photoUrl}
+                  src={photoUrl}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
@@ -468,9 +495,9 @@ export const CVRenderer = ({
       {style === "Galaxy" && (
         <div className="p-16 font-serif text-[#1a1a1a]">
           <div className="text-center border-b-2 border-gray-100 pb-10 mb-10">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-28 h-28 mx-auto mb-6 rounded-full overflow-hidden border-2 border-gray-100 shadow-sm">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <h1 className="text-5xl font-bold uppercase tracking-widest mb-4">
@@ -520,10 +547,10 @@ export const CVRenderer = ({
       {style === "Eclipse" && (
         <div className="flex min-h-[297mm] w-[210mm] font-sans text-[#333]">
           <div className="cv-readable-sidebar w-[35%] bg-[#1a1a1a] text-white p-10 flex flex-col gap-10">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-40 h-40 rounded-3xl border-4 border-white/10 mx-auto overflow-hidden">
                 <img
-                  src={data.photoUrl}
+                  src={photoUrl}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
@@ -643,17 +670,13 @@ export const CVRenderer = ({
       {style === "Hyperion" && (
         <div className="flex min-h-[297mm] font-sans">
           <div className="cv-readable-sidebar w-[30%] bg-[#064e3b] text-white p-10 flex flex-col gap-10">
-            {data.photoUrl ? (
+            {hasPhotoSlot && (
               <div className="w-32 h-32 rounded-3xl overflow-hidden border-2 border-emerald-400/30">
                 <img
-                  src={data.photoUrl}
+                  src={photoUrl}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
-              </div>
-            ) : (
-              <div className="w-32 h-32 rounded-3xl bg-emerald-800 flex items-center justify-center font-bold text-3xl">
-                {name[0]}
               </div>
             )}
             <DynamicSidebarSections
@@ -686,10 +709,10 @@ export const CVRenderer = ({
       {style === "Lunar" && (
         <div className="p-10 font-sans bg-slate-50 min-h-[297mm]">
           <header className="mb-8 flex gap-8 items-center">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-24 h-24 rounded-full overflow-hidden shadow-lg">
                 <img
-                  src={data.photoUrl}
+                  src={photoUrl}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
@@ -805,9 +828,9 @@ export const CVRenderer = ({
         <div className="p-10 font-sans bg-white min-h-[297mm]">
           <div className="flex gap-12 mb-10">
             <div className="w-1/3 flex flex-col items-center text-center">
-              {data.photoUrl && (
+              {hasPhotoSlot && (
                 <div className="w-24 h-24 mb-4 rounded-xl overflow-hidden border border-rose-100 shadow-sm">
-                  <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                  <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
                 </div>
               )}
               <h1 className="text-3xl font-black text-rose-500 leading-tight mb-4">
@@ -875,9 +898,9 @@ export const CVRenderer = ({
       {style === "Astra" && (
         <div className="p-12 font-serif bg-white text-[#1a1a1a]">
           <header className="text-center mb-10">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border border-gray-200">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <h1 className="text-4xl font-bold mb-2 tracking-tight"><InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} /></h1>
@@ -914,9 +937,9 @@ export const CVRenderer = ({
       {style === "Prism" && (
         <div className="flex min-h-[297mm] font-sans bg-white">
           <div className="w-[28%] bg-[#ebebeb] p-8 flex flex-col gap-8 text-slate-800">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-28 h-28 mx-auto rounded-full overflow-hidden border-[3px] border-pink-400 shadow-md">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <section>
@@ -988,9 +1011,9 @@ export const CVRenderer = ({
       {style === "Classic" && (
         <div className="min-h-[297mm] font-serif bg-white p-14 text-slate-900">
           <header className="text-center border-b border-slate-300 pb-8 mb-8">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-20 h-20 mx-auto mb-4 rounded-full overflow-hidden border border-slate-300">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <h1 className="text-4xl font-bold tracking-wide mb-2">
@@ -1031,9 +1054,9 @@ export const CVRenderer = ({
         <div className="flex min-h-[297mm] font-sans">
           <div className="w-[34%] bg-[#1e3a5f] text-white p-8 flex flex-col gap-8 relative">
             <div className="absolute top-0 right-0 w-2 h-full bg-[#fbbf24]" />
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-36 h-36 mx-auto overflow-hidden border-4 border-[#fbbf24] shadow-xl">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <DynamicSidebarSections
@@ -1073,9 +1096,9 @@ export const CVRenderer = ({
         <div className="min-h-[297mm] font-sans bg-white">
           <header className="bg-[#1e3a8a] text-white px-10 py-8 flex items-center gap-8 relative overflow-hidden">
             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "12px 12px" }} />
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 shrink-0 relative z-10">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <div className="relative z-10 flex-1">
@@ -1121,15 +1144,15 @@ export const CVRenderer = ({
       {style === "Verde" && (
         <div className="min-h-[297mm] font-sans bg-white">
           <div className="h-28 bg-[#16a34a] relative">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="absolute left-10 -bottom-12 w-28 h-28 rounded-xl overflow-hidden border-4 border-white shadow-xl">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
           </div>
           <div className="px-12 pt-16 pb-10">
             <header className="flex justify-between items-start border-b border-slate-200 pb-6 mb-8">
-              <div className={data.photoUrl ? "pl-36" : ""}>
+              <div className={hasPhotoSlot ? "pl-36" : ""}>
                 <h1 className="text-4xl font-black text-slate-900">
                   <InlineEdit value={name} path="userName" isInteractive={isInteractive} onUpdate={onUpdate} />
                 </h1>
@@ -1161,9 +1184,9 @@ export const CVRenderer = ({
       {style === "Rose" && (
         <div className="flex min-h-[297mm] font-sans border-l-[10px] border-t-[10px] border-[#ec4899] bg-white">
           <div className="w-[32%] p-8 flex flex-col gap-8 border-r border-pink-100">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-full aspect-[4/5] overflow-hidden border-2 border-[#ec4899]">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <DynamicSidebarSections
@@ -1205,9 +1228,9 @@ export const CVRenderer = ({
       {style === "Azure" && (
         <div className="flex min-h-[297mm] font-sans">
           <div className="w-[30%] bg-[#dbeafe] p-8 flex flex-col gap-8 text-slate-800">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-28 h-28 mx-auto overflow-hidden border-2 border-[#3b82f6] shadow-md">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <DynamicSidebarSections
@@ -1248,9 +1271,9 @@ export const CVRenderer = ({
       {style === "Europass" && (
         <div className="flex min-h-[297mm] font-sans text-slate-800">
           <div className="cv-readable-sidebar w-[32%] bg-[#0065a2] text-white p-8 flex flex-col gap-10">
-            {data.photoUrl && (
+            {hasPhotoSlot && (
               <div className="w-32 h-32 rounded-sm overflow-hidden border-2 border-white/30 mx-auto">
-                <img src={data.photoUrl} alt={name} className="w-full h-full object-cover" />
+                <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
               </div>
             )}
             <DynamicSidebarSections

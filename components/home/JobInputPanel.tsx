@@ -27,40 +27,40 @@ export default function JobInputPanel({
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-900 tracking-tight">{t('title')}</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('subtitle')}</p>
+            <p className="text-xs font-bold text-gray-900 uppercase tracking-widest">{t('subtitle')}</p>
           </div>
         </div>
         <div className="bg-blue-50 text-primary px-3 py-1 rounded-full flex items-center gap-2">
           <Info size={14} />
-          <span className="text-[10px] font-black uppercase tracking-widest">{t('optional')}</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">{t('optional')}</span>
         </div>
       </div>
 
       <div className="space-y-6 flex-1 flex flex-col">
         <div className="space-y-3">
           <div className="flex justify-between items-center ml-1">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">{t('title_label')}</label>
-            <span className="text-[9px] font-bold text-slate-300 uppercase">{t('title_optional')}</span>
+            <label className="text-xs font-black text-gray-900 uppercase tracking-widest">{t('title_label')}</label>
+            <span className="text-[9px] font-bold text-gray-500 uppercase">{t('title_optional')}</span>
           </div>
           <input 
             type="text"
             placeholder={t('title_placeholder')}
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
-            className="w-full bg-slate-50 border-none rounded-xl sm:rounded-2xl px-4 py-3 sm:px-6 sm:py-4 text-sm font-bold focus:ring-4 focus:ring-primary/10 outline-none text-slate-700 placeholder:text-slate-300 transition-all"
+            className="w-full bg-slate-50 border-none rounded-xl sm:rounded-2xl px-4 py-3 sm:px-6 sm:py-4 text-sm font-bold focus:ring-4 focus:ring-primary/10 outline-none text-slate-700 placeholder:text-gray-400 transition-all"
           />
         </div>
 
         <div className="space-y-3 flex-1 flex flex-col">
           <div className="flex justify-between items-center ml-1">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">{t('description_label')}</label>
-            <span className="text-[9px] font-bold text-slate-300 uppercase">{t('description_optional')}</span>
+            <label className="text-xs font-black text-gray-900 uppercase tracking-widest">{t('description_label')}</label>
+            <span className="text-[9px] font-bold text-gray-500 uppercase">{t('description_optional')}</span>
           </div>
           <textarea 
             placeholder={t('description_placeholder')}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="w-full flex-1 min-h-[200px] sm:min-h-[250px] bg-slate-50 border-none rounded-xl sm:rounded-[2rem] px-4 py-4 sm:px-6 sm:py-6 text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700 placeholder:text-slate-300 transition-all"
+            className="w-full flex-1 min-h-[200px] sm:min-h-[250px] bg-slate-50 border-none rounded-xl sm:rounded-[2rem] px-4 py-4 sm:px-6 sm:py-6 text-sm font-medium focus:ring-4 focus:ring-primary/10 outline-none resize-none leading-relaxed text-slate-700 placeholder:text-gray-400 transition-all"
           />
         </div>
       </div>

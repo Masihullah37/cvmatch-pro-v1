@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function PaymentSync({ analysisId }: { analysisId: string }) {
+export default function PaymentSync({ analysisId }: { analysisId?: string }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
 
@@ -19,20 +19,39 @@ export default function PaymentSync({ analysisId }: { analysisId: string }) {
     const interval = setInterval(async () => {
       attempts++;
 
-      const res = await fetch(
-        `/api/check-payment-status?analysisId=${analysisId}`,
-        { cache: "no-store" }
-      );
-      const data = await res.json();
+      try {
+        const queryParams = analysisId ? `?analysisId=${analysisId}` : '';
+        const [statusRes, creditsRes] = await Promise.all([
+          fetch(`/api/check-payment-status${queryParams}`, { cache: "no-store" }),
+          fetch(`/api/user/credits`, { cache: "no-store" })
+        ]);
+        
+        const statusData = await statusRes.json();
+        const creditsData = await creditsRes.json();
 
-      // Stop when templates exist (webhook done) OR after 20s timeout
-      if (data.isPaid || attempts > 10) {
-        await fetch("/api/user/refresh-rate-limits", { method: "POST" }).catch(
-          () => {}
-        );
-        clearInterval(interval);
-        setSyncing(false);
-        router.refresh();
+        const hasCreditsNow = creditsData.credits > 0;
+        const hasPaidPlan = creditsData.plan !== 'free';
+
+        // Stop when any success indicator is found OR after timeout
+        if (statusData.isPaid || hasCreditsNow || hasPaidPlan || attempts > 15) {
+          // Hit the rate limit reset endpoint to be sure
+          await fetch("/api/user/refresh-rate-limits", { method: "POST" }).catch(() => {});
+          
+          clearInterval(interval);
+          setSyncing(false);
+          
+          if (attempts <= 15) {
+            // Remove payment params from URL
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete("payment");
+            newUrl.searchParams.delete("session_id");
+            window.history.replaceState({}, "", newUrl.toString());
+            
+            router.refresh();
+          }
+        }
+      } catch (e) {
+        console.error("Sync error:", e);
       }
     }, 2000);
 

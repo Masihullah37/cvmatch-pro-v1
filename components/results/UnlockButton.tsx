@@ -23,7 +23,7 @@ export default function UnlockButton({
   const locale = useLocale();
 
   // Capture current path to ensure redirect after payment returns here
-  const currentPath = typeof window !== "undefined" ? window.location.pathname + window.location.search : "";
+  const currentPath = typeof window !== "undefined" ? window.location.href : "";
 
   const handleUnlock = async () => {
     if (isGuest) {
@@ -76,7 +76,7 @@ export default function UnlockButton({
               size={24}
             />
           )}
-          Générer mes 12 CV Optimisés
+          Générer mes CV Optimisés
         </button>
       </div>
 

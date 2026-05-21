@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { Suspense, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -9,30 +10,29 @@ import { useSearchParams } from "next/navigation";
  */
 function PaymentBridgeContent() {
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
+  const { destination, error } = useMemo(() => {
     const target = searchParams.get("target");
     if (!target) {
-      setError("Lien de retour invalide.");
-      return;
+      return { destination: null, error: "Lien de retour invalide." };
     }
 
-    let destination: string;
     try {
-      destination = decodeURIComponent(target);
+      const decodedTarget = decodeURIComponent(target);
+      if (!decodedTarget.startsWith("/")) {
+        return { destination: null, error: "Lien de retour invalide." };
+      }
+      return { destination: decodedTarget, error: null };
     } catch {
-      setError("Lien de retour invalide.");
-      return;
+      return { destination: null, error: "Lien de retour invalide." };
     }
+  }, [searchParams]);
 
-    if (!destination.startsWith("/")) {
-      setError("Lien de retour invalide.");
+  useEffect(() => {
+    if (!destination) {
       return;
     }
 
     const fullUrl = `${window.location.origin}${destination}`;
-
     const goToDestination = () => window.location.replace(fullUrl);
 
     if (destination.includes("payment=success")) {
@@ -49,24 +49,26 @@ function PaymentBridgeContent() {
       redirect: "follow",
     })
       .catch(() => {
-        /* still redirect — fetch is best-effort to set ngrok cookie */
+        /* Still redirect; fetch is best-effort to set the ngrok cookie. */
       })
       .finally(goToDestination);
-  }, [searchParams]);
+  }, [destination]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4 p-8">
       {error ? (
         <>
           <p className="text-red-600 font-bold">{error}</p>
-          <a href="/" className="text-primary font-bold underline">
-            Retour à l&apos;accueil
-          </a>
+          <Link href="/" className="text-primary font-bold underline">
+            Retour a l&apos;accueil
+          </Link>
         </>
       ) : (
         <>
           <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <p className="text-slate-700 font-bold">Paiement confirmé — redirection en cours…</p>
+          <p className="text-slate-700 font-bold">
+            Paiement confirme - redirection en cours...
+          </p>
         </>
       )}
     </div>

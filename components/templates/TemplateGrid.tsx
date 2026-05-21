@@ -1090,6 +1090,24 @@ export default function TemplateGrid({
   };
 
   const update = useCallback((path: string, value: any) => {
+    if (path === "photoUrl" && typeof value === "string" && value.trim()) {
+      setTemplates((prev) =>
+        prev.map((t) => {
+          const templateData = (t.templateData as any) || {};
+          if (String(t.id) !== String(selectedTemplate) && templateData.photoUrl === "") {
+            return t;
+          }
+          return {
+            ...t,
+            templateData: {
+              ...templateData,
+              photoUrl: value,
+            },
+          };
+        }),
+      );
+    }
+
     setEditingData((prev: any) => {
       if (!prev) return prev;
       const keys = path.split(".");
@@ -1109,7 +1127,7 @@ export default function TemplateGrid({
 
       return updateNested(prev, keys);
     });
-  }, []);
+  }, [selectedTemplate]);
 
   const updateTopLevel = useCallback((key: string, value: any) => {
     setEditingData((prev: any) => {
@@ -1385,7 +1403,7 @@ export default function TemplateGrid({
                   if (hasPaid) {
                     handleDownload(selectedTpl.id);
                   } else if (plan === "anonymous") {
-                    router.push(`/${locale}/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`);
+                    router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(window.location.href)}`);
                   } else {
                     setShowPaywall(true);
                   }
@@ -1416,7 +1434,7 @@ export default function TemplateGrid({
                   if (hasPaid) {
                     handleDownload(selectedTpl.id);
                   } else if (plan === "anonymous") {
-                    router.push(`/${locale}/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`);
+                    router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(window.location.href)}`);
                   } else {
                     setShowPaywall(true);
                   }

@@ -18,9 +18,21 @@ export async function POST(req: Request) {
 
     if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+    let masterOptimizedData = optimizedData;
+    if (templateId && optimizedData?.photoUrl === "") {
+      const analysis = await db.query.cvAnalyses.findFirst({
+        where: eq(cvAnalyses.id, analysisId),
+      });
+      const currentOptimizedData = (analysis?.optimizedData as any) || {};
+      masterOptimizedData = {
+        ...optimizedData,
+        photoUrl: currentOptimizedData.photoUrl,
+      };
+    }
+
     // 2. Update master analysis JSON
     await db.update(cvAnalyses)
-      .set({ optimizedData })
+      .set({ optimizedData: masterOptimizedData })
       .where(eq(cvAnalyses.id, analysisId));
 
     // 3. Update the specific template JSON (if provided)

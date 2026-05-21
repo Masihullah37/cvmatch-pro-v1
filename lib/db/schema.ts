@@ -94,6 +94,16 @@ export const cvGenerations = pgTable('cv_generations', {
   pdfUrl: varchar('pdf_url'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const usageLogs = pgTable('usage_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  scansCompletedCount: integer('scans_completed_count').notNull(),
+  cycleEndedAt: timestamp('cycle_ended_at').defaultNow(),
+  planAtThatTime: varchar('plan_at_that_time'),
+  usageType: varchar('usage_type').default('ats_scan'), // 'ats_scan' or 'ai_rewrite'
+});
+
 export const siteSettings = pgTable('site_settings', {
   id: uuid('id').defaultRandom().primaryKey(),
   activeOffer: jsonb('active_offer'), // { discount: 20, description: 'Offre Spéciale', expiresAt: '...' }

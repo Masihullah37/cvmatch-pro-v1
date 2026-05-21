@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { getUserPlan } from "@/lib/billing/get-user-plan";
 import crypto from "crypto";
 import { getHashedTrackingToken } from "@/lib/anonymous-tracking";
+import { getEffectiveCredits, isCreditsExpired } from "@/lib/utils/subscription";
 
 const schema = z.object({
   cvUrl: z.string().url().optional(),
@@ -84,6 +85,9 @@ export async function POST(req: Request) {
 
     const plan = getUserPlan(dbUser);
     const isPaid = plan === "trial" || plan === "pro";
+    const credits = dbUser ? getEffectiveCredits(dbUser) : 0;
+    const hasCredits = credits > 0;
+    const isExpired = dbUser ? isCreditsExpired(dbUser) : false;
 
     // ✅ Soft-block check for non-paid users
     if (!isPaid) {
@@ -145,34 +149,72 @@ export async function POST(req: Request) {
 
     const ttl = await redis.ttl(redisKey);
     const resetTime = ttl > 0 ? Date.now() + ttl * 1000 : Date.now() + 24 * 60 * 60 * 1000;
-    const resetAt = new Date(resetTime).toISOString();
+    const resetDate = new Date(resetTime);
+    const resetAt = resetDate.toISOString();
+
+    // Format reset time for French display (Europe/Paris)
+    const formattedTimeOnly = resetDate.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Paris'
+    });
+    const formattedTime = `demain à ${formattedTimeOnly}`;
 
     if (count > limit) {
       if (isPaid) {
+        if (!hasCredits || isExpired) {
+          return NextResponse.json(
+            {
+              error: "Vos crédits sont épuisés ou votre plan a expiré. Veuillez renouveler votre abonnement pour continuer.",
+              resetAt,
+              reason: "credits_exhausted",
+              isPaid: true
+            },
+            { status: 402 }
+          );
+        }
         return NextResponse.json(
           {
-            error: "Limite quotidienne atteinte. Revenez demain.",
-            resetAt
+            error: `Limite quotidienne atteinte (10 analyses). Pour des raisons de sécurité, nous limitons l'usage intensif. Veuillez revenir ${formattedTime}.`,
+            resetAt,
+            reason: "rate_limit_reached",
+            isPaid: true
           },
           { status: 429 }
         );
       } else if (plan === "free") {
         return NextResponse.json(
           {
-            error: "Limite d'analyses gratuites atteinte (3 par jour). Veuillez passer à un plan payant pour continuer.",
-            resetAt
+            error: `Limite d'analyses gratuites atteinte (3 par jour). Veuillez passer à un plan payant pour continuer. Prochaine réinitialisation : ${formattedTime}.`,
+            resetAt,
+            reason: "free_limit_reached",
+            isPaid: false
           },
           { status: 429 }
         );
       } else {
         return NextResponse.json(
           {
-            error: "Limite d'analyses gratuites atteinte (3 par jour). Veuillez vous connecter ou souscrire à un plan pour continuer.",
-            resetAt
+            error: `Limite d'analyses gratuites atteinte (3 par jour). Veuillez vous connecter ou souscrire à un plan pour continuer. Prochaine réinitialisation : ${formattedTime}.`,
+            resetAt,
+            reason: "anon_limit_reached",
+            isPaid: false
           },
           { status: 429 }
         );
       }
+    }
+
+    // Check credits before proceeding for paid users
+    if (isPaid && (!hasCredits || isExpired)) {
+      return NextResponse.json(
+        {
+          error: "Crédits insuffisants. Veuillez renouveler votre plan pour continuer.",
+          reason: "credits_exhausted",
+          isPaid: true
+        },
+        { status: 402 }
+      );
     }
 
     // ✅ Content-Type check — must be JSON

@@ -28,10 +28,12 @@ import HowItWorks from "@/components/home/HowItWorks";
 // import FeaturesSection from '@/components/home/FeaturesSection';
 import PricingSection from "@/components/home/PricingSection";
 import HeroUploadSection from "@/components/home/HeroUploadSection";
+import PaymentSync from "@/components/results/PaymentSync";
 
 export default async function HomePage() {
   return (
     <div className="flex-1 flex flex-col overflow-x-hidden">
+      <PaymentSync />
       <HeroSection />
 
       <section id="analyze" className="py-20 px-6 max-w-6xl mx-auto w-full">

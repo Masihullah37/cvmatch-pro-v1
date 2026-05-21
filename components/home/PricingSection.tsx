@@ -39,7 +39,7 @@ const plans = [
     features: [
       "Tout du plan Gratuit",
       "5 CVs professionnels générés",
-      "12 modèles de styles différents",
+      "Modèles de styles différents",
       "Éditeur de CV intégré",
       "Téléchargement PDF illimité",
       "Valable 30 jours",
@@ -96,25 +96,22 @@ export default function PricingSection() {
 
     if (!userId) {
       // If not logged in, go to sign-in and then back to pricing or checkout
-      const currentUrl = window.location.pathname + window.location.search;
-      const separator = currentUrl.includes('?') ? '&' : '?';
-      const redirectWithTrigger = `${currentUrl}${separator}trigger=${plan.type}`;
+      const redirectUrl = new URL(window.location.href);
+      redirectUrl.searchParams.set("trigger", plan.type);
+      const redirectWithTrigger = redirectUrl.toString();
       router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(redirectWithTrigger)}`);
       return;
     }
 
-    // Check if user has active credits or unexpired plan
-    if (userStatus && userStatus.credits > 0) {
-      const expiryDate = userStatus.expiry ? new Date(userStatus.expiry) : null;
-      if (!expiryDate || expiryDate > new Date()) {
-        setShowActiveModal(true);
-        return;
-      }
-    }
-
     try {
       setLoading(plan.type);
-      const url = await createCheckoutSession(plan.type as any, undefined, locale);
+      const url = await createCheckoutSession(
+        plan.type as any,
+        undefined,
+        locale,
+        undefined,
+        window.location.href
+      );
       if (url) {
         window.location.href = url;
       }

@@ -12,23 +12,40 @@ export default function CustomSignInPage() {
   const searchParams = useSearchParams();
   const locale = useLocale();
 
-  const redirectToParam = searchParams.get("redirectTo");
+  const redirectToParam =
+    searchParams.get("redirectTo") || searchParams.get("redirect_url");
+  const getSafeRedirectPath = () => {
+    if (typeof window === "undefined" || !redirectToParam) return null;
+
+    try {
+      const decoded = decodeURIComponent(redirectToParam);
+      const parsed = new URL(decoded, window.location.origin);
+      if (parsed.origin !== window.location.origin) return null;
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return null;
+    }
+  };
+  const safeRedirectPath = getSafeRedirectPath();
+  const encodedSafeRedirectPath = safeRedirectPath
+    ? encodeURIComponent(safeRedirectPath)
+    : null;
 
   // ✅ Same cookie setter as sign-up — survives Clerk's flow
   useEffect(() => {
-    if (redirectToParam) {
+    if (encodedSafeRedirectPath) {
       fetch("/api/set-redirect-cookie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ redirectTo: redirectToParam }),
+        body: JSON.stringify({ redirectTo: encodedSafeRedirectPath }),
       });
     }
-  }, [redirectToParam]);
+  }, [encodedSafeRedirectPath]);
 
   const redirectTo =
     typeof window !== "undefined"
-      ? redirectToParam
-        ? `${window.location.origin}${decodeURIComponent(redirectToParam)}`
+      ? safeRedirectPath
+        ? `${window.location.origin}${safeRedirectPath}`
         : `${window.location.origin}/${locale}/dashboard`
       : `/${locale}/dashboard`;
 
@@ -59,8 +76,8 @@ export default function CustomSignInPage() {
               forceRedirectUrl={redirectTo}
               fallbackRedirectUrl={`/${locale}/dashboard`}
               signUpUrl={
-                redirectToParam
-                  ? `/${locale}/sign-up?redirectTo=${redirectToParam}`
+                encodedSafeRedirectPath
+                  ? `/${locale}/sign-up?redirectTo=${encodedSafeRedirectPath}`
                   : `/${locale}/sign-up`
               }
               appearance={{

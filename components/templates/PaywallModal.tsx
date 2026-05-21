@@ -46,21 +46,13 @@ export default function PaywallModal({
 
   const handleCheckout = async (type: 'one-time' | 'subscription') => {
     if (!userId) {
-      router.push(`/${locale}/sign-in`);
+      router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(window.location.href)}`);
       return;
-    }
-
-    // Check if user has active credits or unexpired plan
-    if (userStatus && userStatus.credits > 0) {
-      const expiryDate = userStatus.expiry ? new Date(userStatus.expiry) : null;
-      if (!expiryDate || expiryDate > new Date()) {
-        setShowActiveModal(true);
-        return;
-      }
     }
 
     setLoading(type);
     try {
+      const path = window.location.href;
       if (typeof window !== "undefined") {
         sessionStorage.setItem(
           "cvmatch_checkout_return",
@@ -69,11 +61,11 @@ export default function PaywallModal({
             templateNumber: templateNumber ?? null,
             templateId: templateId ?? null,
             mobileView: mobileView ?? null,
-            path: window.location.pathname + window.location.search,
+            path,
           })
         );
       }
-      const checkoutUrl = await createCheckoutSession(type, analysisId, locale, templateNumber);
+      const checkoutUrl = await createCheckoutSession(type, analysisId, locale, templateNumber, path);
       window.location.href = checkoutUrl;
     } catch (error: any) {
       console.error("Checkout failed", error);
@@ -135,7 +127,7 @@ export default function PaywallModal({
                     '5 Crédits de génération',
                     'Valable 30 jours',
                     'Aucun filigrane',
-                    'CV + Lettre de Motivation',
+                    'CV optimisé inclus',
                     'Analyses ATS incluses'
                   ].map((item, i) => (
                     <li key={i} className="flex items-center gap-4 text-sm font-bold text-slate-600">

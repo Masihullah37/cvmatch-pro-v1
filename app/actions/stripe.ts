@@ -2,51 +2,88 @@
 
 import { stripe } from "@/lib/stripe";
 import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getEffectiveCredits } from "@/lib/utils/subscription";
+import { eq } from "drizzle-orm";
+
+function resolveCheckoutBaseUrl(returnPath: string | undefined, requestOrigin: string | null) {
+  const fallbackUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000").trim();
+  if (!returnPath) return fallbackUrl;
+
+  try {
+    const parsed = new URL(returnPath);
+    if (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      requestOrigin &&
+      parsed.origin === requestOrigin
+    ) {
+      return parsed.origin;
+    }
+  } catch {
+    // Relative return paths use the configured app URL.
+  }
+
+  return fallbackUrl;
+}
+
+function resolveReturnPath(returnPath: string | undefined, fallbackPath: string, appUrl: string) {
+  if (!returnPath) return fallbackPath;
+
+  try {
+    const appOrigin = new URL(appUrl).origin;
+    const parsed = new URL(returnPath, appOrigin);
+    if (parsed.origin !== appOrigin) return fallbackPath;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallbackPath;
+  }
+}
+
+function buildPaymentBridgeUrl(appUrl: string, locale: string, targetPath: string) {
+  const successUrl = new URL(targetPath, appUrl);
+  successUrl.searchParams.set("payment", "success");
+  successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+
+  const bridgeTarget = encodeURIComponent(
+    `${successUrl.pathname}${successUrl.search}${successUrl.hash}`
+  );
+
+  return `${appUrl}/${locale}/payment/bridge?target=${bridgeTarget}`;
+}
 
 export async function createCheckoutSession(
   type: "one-time" | "subscription",
   analysisId?: string,
   locale: string = "fr",
-  templateNumber?: number
+  templateNumber?: number,
+  returnPath?: string
 ) {
   const { userId, sessionClaims } = await auth();
-  const userEmail = (sessionClaims as any)?.email;
+  const headersList = await headers();
+  const userEmail = (sessionClaims as { email?: string } | null)?.email;
+  const appUrl = resolveCheckoutBaseUrl(returnPath, headersList.get("origin"));
 
-  // Server-side check: Block if user already has active credits
-  if (userId) {
-    const dbUser = await db.query.users.findFirst({
-      where: eq(users.clerkId, userId),
-    });
-
-    if (dbUser && getEffectiveCredits(dbUser) > 0) {
-      throw new Error("Vous avez déjà un plan actif avec des crédits disponibles.");
-    }
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000";
-
-  let successPath = "";
+  let fallbackSuccessPath = "";
   if (analysisId) {
-    successPath = templateNumber
-      ? `/${locale}/templates/${analysisId}?template=${templateNumber}&payment=success`
-      : `/${locale}/templates/${analysisId}?payment=success`;
+    fallbackSuccessPath = templateNumber
+      ? `/${locale}/templates/${analysisId}?template=${templateNumber}`
+      : `/${locale}/templates/${analysisId}`;
   } else {
-    successPath = `/${locale}/dashboard?payment=success`;
+    fallbackSuccessPath = `/${locale}/dashboard`;
   }
 
-  const bridgeTarget = encodeURIComponent(
-    `${successPath}&session_id={CHECKOUT_SESSION_ID}`
+  const targetPath = resolveReturnPath(returnPath, fallbackSuccessPath, appUrl);
+  const successBridgeUrl = buildPaymentBridgeUrl(appUrl, locale, targetPath);
+  const cancelUrl = new URL(
+    resolveReturnPath(
+      returnPath,
+      analysisId ? `/${locale}/results/${analysisId}` : `/${locale}#pricing`,
+      appUrl
+    ),
+    appUrl
   );
-  const successBridgeUrl = `${appUrl}/${locale}/payment/bridge?target=${bridgeTarget}`;
-
-  const cancelUrl = analysisId 
-    ? `${appUrl}/${locale}/results/${analysisId}?canceled=true`
-    : `${appUrl}/${locale}#pricing`;
+  cancelUrl.searchParams.set("canceled", "true");
 
   let session;
 
@@ -59,12 +96,12 @@ export async function createCheckoutSession(
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Pack 5 CV Optimisés (Paiement Unique)",
+              name: "Pack 5 CV Optimises (Paiement Unique)",
               description: analysisId
-                ? "Débloquez vos 12 modèles de CV parfaitement adaptés pour l'offre d'emploi."
-                : "Achetez 5 crédits pour générer des CV optimisés par l'IA.",
+                ? "Debloquez vos modeles de CV parfaitement adaptes pour l'offre d'emploi."
+                : "Achetez 5 credits pour generer des CV optimises par l'IA.",
             },
-            unit_amount: 290, // 2.90 EUR
+            unit_amount: 390,
           },
           quantity: 1,
         },
@@ -72,10 +109,10 @@ export async function createCheckoutSession(
       mode: "payment",
       allow_promotion_codes: true,
       success_url: successBridgeUrl,
-      cancel_url: cancelUrl,
+      cancel_url: cancelUrl.toString(),
       custom_text: {
         submit: {
-          message: "Débloquez votre plein potentiel avec OuiCV Pro.",
+          message: "Debloquez votre plein potentiel avec OuiCV Pro.",
         },
       },
       metadata: {
@@ -97,16 +134,23 @@ export async function createCheckoutSession(
       mode: "subscription",
       allow_promotion_codes: true,
       success_url: successBridgeUrl,
-      cancel_url: cancelUrl,
+      cancel_url: cancelUrl.toString(),
       custom_text: {
         submit: {
-          message: "Abonnez-vous pour un accès illimité aux fonctionnalités Pro.",
+          message: "Abonnez-vous pour un acces illimite aux fonctionnalites Pro.",
         },
       },
       metadata: {
         userId: userId || "guest",
         analysisId: analysisId || "direct",
         type: "subscription",
+      },
+      subscription_data: {
+        metadata: {
+          userId: userId || "guest",
+          analysisId: analysisId || "direct",
+          type: "subscription",
+        },
       },
     });
   }
@@ -132,7 +176,7 @@ export async function cancelMonthlySubscription(): Promise<{
   });
 
   if (!dbUser?.stripeSubscriptionId) {
-    throw new Error("Aucun abonnement actif à annuler.");
+    throw new Error("Aucun abonnement actif a annuler.");
   }
 
   const subscription = await stripe.subscriptions.update(
@@ -155,6 +199,6 @@ export async function cancelMonthlySubscription(): Promise<{
   return {
     success: true,
     message:
-      "Votre abonnement a été annulé.\nIl restera actif jusqu’à la fin de la période en cours.\nAucun renouvellement ne sera effectué.",
+      "Votre abonnement a ete annule.\nIl restera actif jusqu'a la fin de la periode en cours.\nAucun renouvellement ne sera effectue.",
   };
 }

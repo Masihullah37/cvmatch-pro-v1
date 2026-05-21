@@ -27,6 +27,8 @@ export default function AnalyzeButton({
   const [error, setError] = useState<string | null>(null);
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [limitMessage, setLimitMessage] = useState("");
+  const [isPaidUser, setIsPaidUser] = useState(false);
+  const [limitReason, setLimitReason] = useState<string | null>(null);
 
   // Auto-clear error after 8 seconds
   useEffect(() => {
@@ -85,8 +87,10 @@ export default function AnalyzeButton({
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 429) {
-          setLimitMessage(data.error || "Limite quotidienne d'analyses gratuite atteinte.");
+        if (response.status === 429 || response.status === 402) {
+          setLimitMessage(data.error || "Quota atteint.");
+          setIsPaidUser(data.isPaid || false);
+          setLimitReason(data.reason || null);
           setIsLimitModalOpen(true);
           setIsAnalyzing(false);
           return;
@@ -186,34 +190,40 @@ export default function AnalyzeButton({
             </button>
 
             <div className="w-16 h-16 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-red-100/50">
-              <Lock size={28} strokeWidth={2.5} />
+              {limitReason === 'credits_exhausted' ? (
+                <Sparkles size={28} strokeWidth={2.5} />
+              ) : (
+                <Lock size={28} strokeWidth={2.5} />
+              )}
             </div>
 
             <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-3">
-              Limite d'analyses atteinte
+              {limitReason === 'credits_exhausted' ? 'Crédits épuisés' : 'Limite atteinte'}
             </h3>
 
             <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8">
-              {limitMessage || "Vous avez atteint votre quota d'analyses quotidiennes. Pour continuer à optimiser vos CV sans limite, passez au plan supérieur."}
+              {limitMessage || "Vous avez atteint votre quota. Pour continuer à optimiser vos CV, passez au plan supérieur."}
             </p>
 
             <div className="flex flex-col gap-3 w-full">
-              <button
-                onClick={() => {
-                  setIsLimitModalOpen(false);
-                  router.push(`/${locale}/#pricing`);
-                }}
-                className="w-full py-4 px-6 rounded-2xl bg-primary text-white font-black hover:bg-primary/95 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 animate-pulse"
-              >
-                <Sparkles size={18} className="fill-white" />
-                Passer au Plan Pro
-              </button>
+              {(limitReason === 'credits_exhausted' || !isPaidUser) && (
+                <button
+                  onClick={() => {
+                    setIsLimitModalOpen(false);
+                    router.push(`/${locale}/#pricing`);
+                  }}
+                  className="w-full py-4 px-6 rounded-2xl bg-primary text-white font-black hover:bg-primary/95 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95 animate-pulse"
+                >
+                  <Sparkles size={18} className="fill-white" />
+                  {limitReason === 'credits_exhausted' ? 'Recharger des crédits' : 'Passer au Plan Pro'}
+                </button>
+              )}
               
               <button
                 onClick={() => setIsLimitModalOpen(false)}
                 className="w-full py-4 px-6 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold transition-all active:scale-95"
               >
-                Fermer
+                {limitReason === 'rate_limit_reached' ? 'Compris' : 'Fermer'}
               </button>
             </div>
 
