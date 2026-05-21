@@ -87,16 +87,18 @@ export default function CustomSignInPage() {
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
                   socialButtonsBlockButton:
-                    "rounded-2xl border-slate-100 hover:bg-slate-50 transition-all font-bold text-slate-600",
+                    "rounded-2xl border-slate-100 hover:bg-slate-50 transition-all font-bold text-slate-600 h-12",
                   formButtonPrimary:
-                    "bg-primary hover:bg-primary/90 rounded-2xl py-3 font-bold shadow-lg shadow-primary/20 transition-all",
+                    "bg-slate-900 hover:bg-slate-800 rounded-2xl py-4 font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 transition-all",
                   formFieldInput:
-                    "rounded-xl border-slate-100 bg-slate-50/50 focus:ring-primary focus:border-primary",
+                    "rounded-2xl border-slate-100 bg-slate-50/50 focus:ring-primary focus:border-primary h-12 px-4 font-medium",
                   footerActionLink:
                     "text-primary font-bold hover:text-primary/80",
-                  identityPreviewText: "text-slate-600",
+                  identityPreviewText: "text-slate-600 font-bold",
                   formFieldLabel:
-                    "text-slate-500 font-bold text-xs uppercase tracking-widest",
+                    "text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-1.5",
+                  dividerLine: "bg-slate-100",
+                  dividerText: "text-slate-300 font-bold text-[10px] uppercase",
                 },
               }}
             />

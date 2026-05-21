@@ -1,14 +1,6 @@
-import Groq from "groq-sdk";
+import { generateLLMResponse } from "./llm-gateway";
 import { type StructuredJobDetails } from "@/lib/utils/scraper";
 import { applyCoherentAtsScoring } from "@/lib/ai/keyword-normalizer";
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "",
-});
-
-if (!process.env.GROQ_API_KEY) {
-  console.error("CRITICAL: GROQ_API_KEY is missing from environment variables.");
-}
 
 //
 // 🔒 SAFE JSON EXTRACTOR (robust)
@@ -134,19 +126,16 @@ ${structuredContext}
 `;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
+    const text = await generateLLMResponse({
+      prompt,
       temperature: 0.1,
-      max_tokens: 3000,
-      response_format: { type: "json_object" },
+      maxTokens: 3000,
     });
 
-    const text = completion.choices[0]?.message?.content || "";
     const parsed = safeParse(text);
     return applyCoherentAtsScoring(parsed);
   } catch (error: any) {
-    console.error("Groq API Analysis Error:", error?.message || error);
+    console.error("LLM Gateway Analysis Error:", error?.message || error);
     throw new Error(`Failed to analyze CV: ${error?.message || "Unknown error"}`);
   }
 }
@@ -182,20 +171,16 @@ ${safeCvText}
 `;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
+    const text = await generateLLMResponse({
+      prompt,
       temperature: 0,
-      max_tokens: 3000,
-      response_format: { type: "json_object" },
+      maxTokens: 3000,
     });
 
-    const text = completion.choices[0]?.message?.content || "";
     const parsed = safeParse(text);
-
     return parsed;
   } catch (error: any) {
-    console.error("Groq API Extraction Error:", error?.message || error);
+    console.error("LLM Gateway Extraction Error:", error?.message || error);
     return null;
   }
 }
@@ -258,17 +243,13 @@ ${structuredContext}
 `;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
+    const text = await generateLLMResponse({
+      prompt,
       temperature: 0.2,
-      max_tokens: 3000,
-      response_format: { type: "json_object" },
+      maxTokens: 3000,
     });
 
-    const text = completion.choices[0]?.message?.content || "";
-
-    console.log("=== GROQ RAW RESPONSE ===");
+    console.log("=== LLM GATEWAY RESPONSE ===");
     console.log(text.substring(0, 500) + "...");
 
     const parsed = safeParse(text);
@@ -281,7 +262,7 @@ ${structuredContext}
 
     return parsed;
   } catch (error: any) {
-    console.error("Groq API Optimization Error:", error?.message || error);
+    console.error("LLM Gateway Optimization Error:", error?.message || error);
 
     return {
       userName: "ERROR",

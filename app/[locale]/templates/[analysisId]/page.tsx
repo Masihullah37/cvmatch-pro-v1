@@ -8,6 +8,7 @@ import { getUserPlan } from "@/lib/billing/get-user-plan";
 import { notFound } from "next/navigation";
 import TemplateGrid from "@/components/templates/TemplateGrid";
 import { auth } from "@clerk/nextjs/server";
+import { syncUserWithClerk } from "@/lib/auth/sync";
 import { Sparkles } from "lucide-react";
 import { Link } from "@/i18n/routing";
 
@@ -94,15 +95,13 @@ export default async function TemplatesPage({
 
   const { userId } = await auth();
 
+  // Ensure user is synced with DB
+  const dbUser = await syncUserWithClerk();
+
   const analysis = await db.query.cvAnalyses.findFirst({
     where: eq(cvAnalyses.id, analysisId),
   });
   if (!analysis) notFound();
-
-  // Get user's paid status
-  const dbUser = userId
-    ? await db.query.users.findFirst({ where: eq(users.clerkId, userId) })
-    : null;
 
   const userCredits = dbUser ? getEffectiveCredits(dbUser) : 0;
   const isExpired = dbUser ? isUserExpired(dbUser) : false;

@@ -22,6 +22,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import PaywallModal from "./PaywallModal";
+import GuestAuthModal from "./GuestAuthModal";
+import Watermark from "./Watermark";
 import {
   Lock,
   Download,
@@ -761,6 +763,7 @@ export default function TemplateGrid({
   const [userCredits, setUserCredits] = useState<number>(initialUserCredits);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showGuestAuthModal, setShowGuestAuthModal] = useState(false);
   const [editingData, setEditingData] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -837,7 +840,6 @@ export default function TemplateGrid({
     if (!template) return;
 
     if (isExpired && !analysisIsPaid) {
-      alert("Votre plan a expiré. Veuillez renouveler votre plan pour continuer à éditer vos CVs.");
       setShowPaywall(true);
       return;
     }
@@ -856,7 +858,7 @@ export default function TemplateGrid({
         }
       } catch (err: any) {
         if (err.message.includes("EXPIRED:")) {
-          alert(err.message.replace("EXPIRED: ", ""));
+          setShowPaywall(true);
         } else {
           console.error("Credit deduction failed", err);
         }
@@ -896,7 +898,6 @@ export default function TemplateGrid({
     if (!template) return;
 
     if (isExpired && !analysisIsPaid) {
-      alert("Votre plan a expiré. Veuillez renouveler votre plan pour continuer à éditer vos CVs.");
       setShowPaywall(true);
       return;
     }
@@ -911,7 +912,7 @@ export default function TemplateGrid({
         }
       } catch (err: any) {
         if (err.message.includes("EXPIRED:")) {
-          alert(err.message.replace("EXPIRED: ", ""));
+          setShowPaywall(true);
         } else {
           console.error("Credit deduction failed", err);
         }
@@ -949,7 +950,6 @@ export default function TemplateGrid({
 
   const handleGenerateAI = async () => {
     if (isExpired && !analysisIsPaid) {
-      alert("Votre plan a expiré. Veuillez renouveler votre plan pour continuer à profiter des avantages Pro.");
       setShowPaywall(true);
       return;
     }
@@ -967,10 +967,10 @@ export default function TemplateGrid({
             router.refresh();
           }
         } catch (err: any) {
-          if (err.message.includes("EXPIRED:")) {
-            alert(err.message.replace("EXPIRED: ", ""));
+          if (plan === "anonymous") {
+            setShowGuestAuthModal(true);
           } else {
-            alert(err.message);
+            setShowPaywall(true);
           }
           return;
         }
@@ -987,7 +987,11 @@ export default function TemplateGrid({
         router.refresh();
       }
     } catch (err: any) {
-      alert(err.message);
+      if (plan === "anonymous") {
+        setShowGuestAuthModal(true);
+      } else {
+        setShowPaywall(true);
+      }
     } finally {
       setIsGeneratingAI(false);
     }
@@ -1027,7 +1031,6 @@ export default function TemplateGrid({
 
   const handleDownload = async (templateId: string) => {
     if (isExpired && !analysisIsPaid) {
-      alert("Votre plan a expiré. Veuillez renouveler votre plan pour télécharger vos CVs sans filigrane.");
       setShowPaywall(true);
       return;
     }
@@ -1044,10 +1047,10 @@ export default function TemplateGrid({
             router.refresh();
           }
         } catch (err: any) {
-          if (err.message.includes("EXPIRED:")) {
-            alert(err.message.replace("EXPIRED: ", ""));
+          if (plan === "anonymous") {
+            setShowGuestAuthModal(true);
           } else {
-            alert(err.message);
+            setShowPaywall(true);
           }
           return;
         }
@@ -1083,7 +1086,11 @@ export default function TemplateGrid({
         document.body.removeChild(link);
       }
     } catch (err: any) {
-      alert(err.message);
+      if (plan === "anonymous") {
+        setShowGuestAuthModal(true);
+      } else {
+        setShowPaywall(true);
+      }
     } finally {
       setIsGenerating(null);
     }
@@ -1394,7 +1401,7 @@ export default function TemplateGrid({
                   if (hasPaid) {
                     handleDownload(selectedTpl.id);
                   } else if (plan === "anonymous") {
-                    router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(window.location.href)}`);
+                    setShowGuestAuthModal(true);
                   } else {
                     setShowPaywall(true);
                   }
@@ -1425,7 +1432,7 @@ export default function TemplateGrid({
                   if (hasPaid) {
                     handleDownload(selectedTpl.id);
                   } else if (plan === "anonymous") {
-                    router.push(`/${locale}/sign-in?redirectTo=${encodeURIComponent(window.location.href)}`);
+                    setShowGuestAuthModal(true);
                   } else {
                     setShowPaywall(true);
                   }
@@ -1573,6 +1580,12 @@ export default function TemplateGrid({
           templateNumber={selectedTpl?.templateNumber}
           templateId={selectedTemplate ?? undefined}
           mobileView={mobileView}
+        />
+      )}
+      {showGuestAuthModal && (
+        <GuestAuthModal
+          isOpen={showGuestAuthModal}
+          onClose={() => setShowGuestAuthModal(false)}
         />
       )}
     </div>

@@ -17,12 +17,12 @@ export default function AuthButtons() {
     return (
       <div className="flex items-center gap-4">
         <SignInButton mode="modal" forceRedirectUrl={currentUrl || undefined} fallbackRedirectUrl={currentUrl || undefined}>
-          <button className="text-sm font-semibold text-primary hover:opacity-80 transition-opacity">
+          <button className="text-sm font-black text-slate-600 hover:text-primary transition-colors tracking-tight uppercase">
             Se connecter
           </button>
         </SignInButton>
         <SignInButton mode="modal" forceRedirectUrl={currentUrl || undefined} fallbackRedirectUrl={currentUrl || undefined}>
-          <button className="text-sm font-semibold bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition-colors">
+          <button className="text-sm font-black bg-slate-900 text-white px-6 py-2.5 rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 uppercase tracking-widest text-[10px]">
             S'inscrire
           </button>
         </SignInButton>

@@ -444,7 +444,6 @@ export const CVRenderer = ({
         .cv-section-controls--delete { color: #dc2626 !important; background: #ffffff !important; border-color: #f87171 !important; }
         .cv-section-controls--delete svg { color: #dc2626 !important; stroke: #dc2626 !important; }
       `}</style>
-      <ProtectionOverlay />
 
       {/* --- STYLE: HORIZON --- */}
       {style === "Horizon" && (
@@ -471,7 +470,7 @@ export const CVRenderer = ({
               sidebarKeys={["contact", "skills"]}
               configs={{
                 contact: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] opacity-90" },
-                skills: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[9px] bg-white/20 px-2 py-1 rounded text-white" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[9px] text-white font-bold" },
               }}
             />
           </div>
@@ -579,7 +578,7 @@ export const CVRenderer = ({
               configs={{
                 contact: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] text-white/90" },
                 languages: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[11px] text-white/90" },
-                skills: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[10px] bg-white/20 px-2 py-1 rounded text-white" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest border-b border-white/20 pb-2", itemClass: "text-[10px] text-white font-bold" },
               }}
             />
           </div>
@@ -684,7 +683,7 @@ export const CVRenderer = ({
               configs={{
                 contact: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "text-[10px] text-white" },
                 languages: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "text-[10px] text-white" },
-                skills: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "bg-emerald-800/50 p-2 rounded-lg text-[10px] font-bold border border-emerald-700/50" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest text-emerald-400", itemClass: "text-[10px] font-bold text-emerald-100" },
               }}
             />
           </div>
@@ -779,7 +778,7 @@ export const CVRenderer = ({
                 sidebarKeys={["languages", "skills"]}
                 configs={{
                   languages: { headerClass: "text-sm font-black uppercase text-indigo-900 mb-6", itemClass: "text-xs" },
-                  skills: { headerClass: "text-sm font-black uppercase text-indigo-900 mb-6", itemClass: "bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold border border-indigo-100" },
+                  skills: { headerClass: "text-sm font-black uppercase text-indigo-900 mb-6", itemClass: "text-xs font-bold text-indigo-700" },
                 }}
               />
             </div>
@@ -860,7 +859,7 @@ export const CVRenderer = ({
                 configs={{
                   contact: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "text-xs font-bold text-gray-500" },
                   languages: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "text-xs" },
-                  skills: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg text-[10px] font-bold" },
+                  skills: { headerClass: "text-xs font-black uppercase tracking-[0.4em] text-gray-300 mb-6", itemClass: "text-[10px] font-bold text-gray-600" },
                 }}
               />
             </div>
@@ -887,7 +886,7 @@ export const CVRenderer = ({
               sidebarKeys={["languages", "skills"]}
               configs={{
                 languages: { headerClass: "text-sm font-black uppercase tracking-widest text-slate-400 mb-4", itemClass: "text-sm" },
-                skills: { headerClass: "text-sm font-black uppercase tracking-widest text-slate-400", itemClass: "bg-slate-100 px-3 py-1 font-bold text-xs rounded-full" },
+                skills: { headerClass: "text-sm font-black uppercase tracking-widest text-slate-400", itemClass: "font-bold text-xs text-slate-700" },
               }}
             />
           </div>
@@ -953,7 +952,7 @@ export const CVRenderer = ({
               configs={{
                 contact: { headerClass: "text-[10px] font-black uppercase tracking-widest text-slate-700 border-b border-slate-300 pb-2", itemClass: "text-[10px] text-slate-600" },
                 languages: { headerClass: "text-[10px] font-black uppercase tracking-widest text-pink-600 border-b border-pink-300 pb-2", itemClass: "text-[10px] text-slate-600" },
-                skills: { headerClass: "text-[10px] font-black uppercase tracking-widest text-pink-600 border-b border-pink-300 pb-2", itemClass: "text-[9px] bg-white px-2 py-1 rounded border border-pink-200 text-slate-700" },
+                skills: { headerClass: "text-[10px] font-black uppercase tracking-widest text-pink-600 border-b border-pink-300 pb-2", itemClass: "text-[9px] text-slate-700 font-bold" },
               }}
             />
           </div>
@@ -1001,7 +1000,7 @@ export const CVRenderer = ({
             itemClass="text-sm text-slate-600 leading-relaxed"
           />
           <div className="mt-10 grid grid-cols-2 gap-10">
-            <SkillsSection headerClass="text-sm font-black uppercase text-[#2563eb] mb-4" itemClass="text-xs font-bold text-slate-700 bg-blue-50 px-2 py-1 rounded" />
+            <SkillsSection headerClass="text-sm font-black uppercase text-[#2563eb] mb-4" itemClass="text-xs font-bold text-slate-700" />
             <LanguagesSection headerClass="text-sm font-black uppercase text-[#2563eb] mb-4" itemClass="text-xs text-slate-600" />
           </div>
         </div>
@@ -1064,7 +1063,7 @@ export const CVRenderer = ({
               configs={{
                 contact: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[11px] text-white/90" },
                 languages: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[11px] text-white" },
-                skills: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[10px] bg-white/10 px-2 py-1 rounded text-white" },
+                skills: { headerClass: "text-xs font-black uppercase tracking-widest text-[#fbbf24] border-b border-white/20 pb-2", itemClass: "text-[10px] text-white font-bold" },
               }}
             />
             <section>
@@ -1126,7 +1125,7 @@ export const CVRenderer = ({
                 sidebarKeys={["languages", "skills"]}
                 configs={{
                   languages: { headerClass: "text-xs font-black uppercase text-[#1e3a8a] mb-3", itemClass: "text-xs text-slate-600" },
-                  skills: { headerClass: "text-xs font-black uppercase text-[#1e3a8a] mb-3", itemClass: "text-[10px] bg-blue-50 text-blue-800 px-2 py-1 rounded font-bold" },
+                  skills: { headerClass: "text-xs font-black uppercase text-[#1e3a8a] mb-3", itemClass: "text-[10px] text-blue-800 font-bold" },
                 }}
               />
             </div>
@@ -1238,7 +1237,7 @@ export const CVRenderer = ({
               configs={{
                 contact: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[10px] text-slate-700" },
                 languages: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[10px] text-slate-700" },
-                skills: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[9px] bg-white px-2 py-1 rounded text-slate-700 font-bold" },
+                skills: { headerClass: "text-[10px] font-black uppercase text-[#1d4ed8] border-b border-blue-300 pb-2", itemClass: "text-[9px] text-slate-700 font-bold" },
               }}
             />
           </div>
@@ -1301,6 +1300,8 @@ export const CVRenderer = ({
           </div>
         </div>
       )}
+
+      <ProtectionOverlay />
     </div>
   );
 };
