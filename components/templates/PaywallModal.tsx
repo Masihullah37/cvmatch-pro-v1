@@ -3,6 +3,7 @@
 import { Lock, Download, CreditCard, Check, ShieldCheck, Zap, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
+import { toast } from 'sonner';
 import { createCheckoutSession } from '@/app/actions/stripe';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
@@ -72,7 +73,7 @@ export default function PaywallModal({
       if (error.message.includes("déjà un plan actif")) {
         setShowActiveModal(true);
       } else {
-        alert("Une erreur est survenue lors de la redirection vers le paiement.");
+        toast.error("Une erreur est survenue lors de la redirection vers le paiement.");
       }
     } finally {
       setLoading(null);

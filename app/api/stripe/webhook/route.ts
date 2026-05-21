@@ -47,6 +47,8 @@ export async function POST(req: Request) {
         const userId = session.metadata?.userId;
         const analysisId = session.metadata?.analysisId;
 
+        let dbUserInternalId: string | null = null;
+
         const existingPayment = paymentIntentId
           ? await db.query.payments.findFirst({
             where: eq(payments.stripePaymentIntentId, paymentIntentId),
@@ -84,8 +86,9 @@ export async function POST(req: Request) {
                   updatedAt: new Date(),
                 })
                 .where(eq(users.clerkId, userId));
+              dbUserInternalId = userRecord.id;
             } else {
-              await db.insert(users).values({
+              const [newUser] = await db.insert(users).values({
                 clerkId: userId,
                 email: session.customer_details?.email ?? undefined,
                 name: session.customer_details?.name ?? undefined,
@@ -93,7 +96,8 @@ export async function POST(req: Request) {
                 credits: 5,
                 subscriptionEndsAt: thirtyDaysFromNow,
                 creditsExpiry: thirtyDaysFromNow,
-              });
+              }).returning({ id: users.id });
+              dbUserInternalId = newUser.id;
             }
           }
 
@@ -102,9 +106,11 @@ export async function POST(req: Request) {
             stripeSessionId: session.id,
             stripePaymentIntentId: session.payment_intent as string,
             amount: session.amount_total,
+            currency: session.currency || 'eur',
             paymentType: "one_time",
             status: "completed",
-            userId: userId && userId !== "guest" ? userId : undefined, // Track if known
+            userId: dbUserInternalId ?? undefined,
+            guestEmail: session.customer_details?.email ?? undefined,
           });
 
           // 3. Unlock analysis if applicable
@@ -163,8 +169,9 @@ export async function POST(req: Request) {
                   creditsExpiry: periodEnd,
                 })
                 .where(eq(users.clerkId, userId));
+              dbUserInternalId = userRecord.id;
             } else {
-              await db.insert(users).values({
+              const [newUser] = await db.insert(users).values({
                 clerkId: userId,
                 email:
                   session.customer_details?.email ??
@@ -181,10 +188,23 @@ export async function POST(req: Request) {
                 subscriptionStatus: "active",
                 subscriptionEndsAt: periodEnd,
                 creditsExpiry: periodEnd,
-              });
+              }).returning({ id: users.id });
+              dbUserInternalId = newUser.id;
             }
             await resetAnalysisRateLimitsForUser(userId);
           }
+
+          // Track initial subscription payment
+          await db.insert(payments).values({
+            stripeSessionId: session.id,
+            stripePaymentIntentId: (session.payment_intent as string) || undefined,
+            amount: session.amount_total,
+            currency: session.currency || 'eur',
+            paymentType: "subscription",
+            status: "completed",
+            userId: dbUserInternalId ?? undefined,
+            guestEmail: session.customer_details?.email ?? session.customer_email ?? undefined,
+          });
         }
 
         break;
@@ -216,9 +236,10 @@ export async function POST(req: Request) {
             creditsExpiry: periodEnd,
           })
           .where(eq(users.stripeSubscriptionId, subscriptionId))
-          .returning({ clerkId: users.clerkId });
+          .returning({ clerkId: users.clerkId, id: users.id });
 
         let clerkIdToReset = renewedUser?.clerkId;
+        let dbUserUuid = renewedUser?.id;
 
         if (!clerkIdToReset && metadataUserId && metadataUserId !== "guest") {
           const [metadataUser] = await db
@@ -233,9 +254,10 @@ export async function POST(req: Request) {
               creditsExpiry: periodEnd,
             })
             .where(eq(users.clerkId, metadataUserId))
-            .returning({ clerkId: users.clerkId });
+            .returning({ clerkId: users.clerkId, id: users.id });
 
           clerkIdToReset = metadataUser?.clerkId;
+          dbUserUuid = metadataUser?.id;
         }
 
         if (!clerkIdToReset && customerId) {
@@ -250,10 +272,22 @@ export async function POST(req: Request) {
               creditsExpiry: periodEnd,
             })
             .where(eq(users.stripeCustomerId, customerId))
-            .returning({ clerkId: users.clerkId });
+            .returning({ clerkId: users.clerkId, id: users.id });
 
           clerkIdToReset = customerUser?.clerkId;
+          dbUserUuid = customerUser?.id;
         }
+
+        // Track Renewal Payment
+        await db.insert(payments).values({
+          stripePaymentIntentId: invoice.payment_intent as string || undefined,
+          amount: invoice.amount_paid,
+          currency: invoice.currency,
+          paymentType: "subscription",
+          status: "completed",
+          userId: dbUserUuid ?? undefined,
+          guestEmail: invoice.customer_email ?? undefined,
+        });
 
         if (clerkIdToReset) {
           await resetAnalysisRateLimitsForUser(clerkIdToReset);

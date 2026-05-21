@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toast, Toaster } from 'sonner';
 import { 
   Users, 
   CreditCard, 
@@ -27,8 +28,10 @@ import {
   deleteUser, 
   getAdminStats, 
   getSiteSettings, 
-  updateSiteSettings 
+  updateSiteSettings,
+  getAllPayments
 } from '@/lib/actions/admin';
+import { RefreshCcw, CheckCircle2, XCircle } from 'lucide-react';
 // Use native Intl for date formatting to avoid extra dependencies
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -47,6 +50,8 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('users');
   const [settings, setSettings] = useState<any>(null);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
 
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -63,14 +68,16 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const [allUsers, allStats, allSettings] = await Promise.all([
+      const [allUsers, allStats, allSettings, allPayments] = await Promise.all([
         getAllUsers(),
         getAdminStats(),
-        getSiteSettings()
+        getSiteSettings(),
+        getAllPayments()
       ]);
       setUsers(allUsers);
       setStats(allStats);
       setSettings(allSettings);
+      setPayments(allPayments);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Une erreur est survenue lors du chargement des données.");
@@ -109,6 +116,38 @@ export default function AdminDashboard() {
         loadData();
       },
       'danger'
+    );
+  };
+
+  const handleRefund = async (stripePaymentIntentId: string) => {
+    if (refundingId) return;
+    
+    triggerConfirm(
+      'Remboursement',
+      'Voulez-vous vraiment rembourser cette transaction ? L\'accès Pro de l\'utilisateur sera réinitialisé.',
+      async () => {
+        try {
+          setRefundingId(stripePaymentIntentId);
+          const res = await fetch('/api/admin/refund', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stripePaymentIntentId })
+          });
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(errorText);
+          }
+          
+          toast.success("Remboursement effectué avec succès !");
+          await loadData();
+        } catch (err: any) {
+          console.error(err);
+          toast.error("Erreur: " + err.message);
+        } finally {
+          setRefundingId(null);
+        }
+      }
     );
   };
 
@@ -173,11 +212,12 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
           <div className="flex flex-wrap border-b border-slate-100 p-2 gap-2">
              <TabButton active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={<Users size={18} />} label="Utilisateurs" />
+             <TabButton active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon={<CreditCard size={18} />} label="Transactions" />
              <TabButton active={activeTab === 'marketing'} onClick={() => setActiveTab('marketing')} icon={<Gift size={18} />} label="Marketing & Offres" />
           </div>
 
           <div className="p-4 md:p-8">
-            {activeTab === 'users' ? (
+            {activeTab === 'users' && (
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
                    <div className="relative flex-1 max-w-md">
@@ -272,7 +312,83 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               </div>
-            ) : (
+            )}
+
+            {activeTab === 'transactions' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="overflow-x-auto rounded-3xl border border-slate-100">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/50">
+                        <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Transaction</th>
+                        <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Client</th>
+                        <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Montant</th>
+                        <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Statut</th>
+                        <th className="px-6 py-5 text-xs font-black text-slate-400 uppercase tracking-[0.2em] text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {payments.map((payment) => (
+                        <tr key={payment.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-6">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-slate-900 capitalize">{payment.paymentType || 'Achat'}</span>
+                              <span className="text-[10px] text-slate-400 font-medium font-mono">{payment.stripePaymentIntentId}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{formatDate(new Date(payment.createdAt))}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-900">{payment.userName || payment.userEmail || payment.guestEmail || 'Client inconnu'}</span>
+                              <span className="text-xs text-slate-500 font-medium">{payment.userEmail || payment.guestEmail}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6 font-black text-slate-900 uppercase">
+                            {(payment.amount / 100).toFixed(2)} {payment.currency}
+                          </td>
+                          <td className="px-6 py-6">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              payment.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 
+                              payment.status === 'refunded' ? 'bg-amber-100 text-amber-700' : 
+                              'bg-slate-100 text-slate-500'
+                            }`}>
+                              {payment.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <div className="flex justify-end">
+                              {payment.status === 'completed' && payment.stripePaymentIntentId && (
+                                <button
+                                  onClick={() => handleRefund(payment.stripePaymentIntentId)}
+                                  disabled={!!refundingId}
+                                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                  {refundingId === payment.stripePaymentIntentId ? (
+                                    <RefreshCcw size={12} className="animate-spin" />
+                                  ) : (
+                                    <RefreshCcw size={12} />
+                                  )}
+                                  Issue Refund
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {payments.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold italic">
+                            Aucune transaction trouvée.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'marketing' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
@@ -297,7 +413,7 @@ export default function AdminDashboard() {
                         };
                         await updateSiteSettings(offer);
                         loadData();
-                        alert("Offre mise à jour !");
+                        toast.success("Offre mise à jour !");
                       }}>
                         <div className="space-y-4">
                           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">

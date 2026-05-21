@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Zap, Sparkles, Loader2 } from "lucide-react";
 import { useLocale } from "next-intl";
+import { toast } from 'sonner';
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
@@ -120,7 +121,7 @@ export default function PricingSection() {
       if (error.message.includes("déjà un plan actif")) {
         setShowActiveModal(true);
       } else {
-        alert("Une erreur est survenue lors de la redirection vers le paiement.");
+        toast.error("Une erreur est survenue lors de la redirection vers le paiement.");
       }
     } finally {
       setLoading(null);

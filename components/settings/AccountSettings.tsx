@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { UserProfile, useClerk } from "@clerk/nextjs";
+import { toast } from 'sonner';
 import { AlertTriangle, Trash2, ShieldAlert, CheckCircle2, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -26,7 +27,7 @@ export default function AccountSettings({ credits }: AccountSettingsProps) {
                 await signOut();
                 window.location.href = "/";
             } else {
-                alert("Erreur lors de la suppression. Veuillez réessayer.");
+                toast.error("Erreur lors de la suppression. Veuillez réessayer.");
                 setIsDeleting(false);
             }
         } catch (error) {

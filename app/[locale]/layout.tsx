@@ -113,6 +113,7 @@ import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import Footer from '@/components/layout/Footer';
 import CookieConsent from '@/components/common/CookieConsent';
+import { Toaster } from 'sonner';
 
 const font = Quicksand({ subsets: ['latin'], weight: ['300', '400', '500', '600', '700'] });
 
@@ -156,6 +157,7 @@ export default async function LocaleLayout({
       </div>
       <CookieConsent />
       <PromotionModal offer={activeOffer} />
+      <Toaster richColors position="top-right" />
     </NextIntlClientProvider>
   );
 }

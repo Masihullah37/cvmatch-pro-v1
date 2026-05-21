@@ -20,6 +20,26 @@ export async function getAllUsers() {
   return await db.select().from(users).orderBy(desc(users.createdAt));
 }
 
+export async function getAllPayments() {
+  await checkAdmin();
+  return await db.select({
+    id: payments.id,
+    amount: payments.amount,
+    currency: payments.currency,
+    status: payments.status,
+    createdAt: payments.createdAt,
+    stripePaymentIntentId: payments.stripePaymentIntentId,
+    paymentType: payments.paymentType,
+    userId: payments.userId,
+    guestEmail: payments.guestEmail,
+    userEmail: users.email,
+    userName: users.name
+  })
+  .from(payments)
+  .leftJoin(users, eq(payments.userId, users.id))
+  .orderBy(desc(payments.createdAt));
+}
+
 export async function updateUserCredits(userId: string, credits: number, expiryDays?: number) {
   await checkAdmin();
   
